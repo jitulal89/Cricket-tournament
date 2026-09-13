@@ -1,0 +1,46 @@
+name: Extract Project Cleanly
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract ZIP
+        run: |
+          mkdir -p /tmp/project
+          unzip -o cricket-tournament-clean.zip -d /tmp/project
+
+      - name: Copy project files
+        run: |
+          cp -R /tmp/project/cricket-tournament/src .
+          cp -R /tmp/project/cricket-tournament/public .
+          cp -R /tmp/project/cricket-tournament/supabase .
+          cp /tmp/project/cricket-tournament/package.json .
+          cp /tmp/project/cricket-tournament/package-lock.json . 2>/dev/null || true
+          cp /tmp/project/cricket-tournament/tsconfig.json .
+          cp /tmp/project/cricket-tournament/next.config.ts .
+          cp /tmp/project/cricket-tournament/next-env.d.ts .
+          cp /tmp/project/cricket-tournament/eslint.config.mjs .
+          cp /tmp/project/cricket-tournament/proxy.ts .
+          cp /tmp/project/cricket-tournament/.env.example .
+
+      - name: Remove ZIP
+        run: |
+          rm -f cricket-tournament-clean.zip
+
+      - name: Commit project
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Add Cricket Tournament application" || echo "Nothing to commit"
+          git push
