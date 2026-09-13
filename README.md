@@ -1,25 +1,22 @@
-# Cricket Tournament Platform — Multi Page
+# Cricket Tournament Platform V5
 
-Static Supabase-powered pages.
+## Important fixes
+- Live auction RPCs now use the existing `auction_events`, `auction_bids`, and `auction_results` columns.
+- No `auction_bids.tournament_id` or `auction_bids.player_id` assumptions.
+- Start Auction creates an auction event for the current `auction_player`.
+- Bids are stored against `auction_event_id`.
+- Results are stored using `auction_event_id`, `auction_player_id`, `result`, `team_id`, and `final_price`.
+- Empty categories are skipped automatically.
+- Captain login setup is now inside **Pre-Auction Setup → Select Captains**.
+- Admin enters the captain email and taps **Create Captain Login**.
+- Captain signs in using a secure one-time email link; no service-role key is placed in the website.
+- Live bid realtime subscription no longer filters on the non-existent `auction_bids.tournament_id` column.
 
-## Public
-- index.html
-- tournament.html?slug=TOURNAMENT-SLUG
-- register.html?slug=TOURNAMENT-SLUG
-- teams.html?slug=TOURNAMENT-SLUG
-- players.html?slug=TOURNAMENT-SLUG
-- fixtures.html?slug=TOURNAMENT-SLUG
-- results.html?slug=TOURNAMENT-SLUG
-- auction-results.html?slug=TOURNAMENT-SLUG
-- player-stats.html?slug=TOURNAMENT-SLUG
+## Supabase
+1. Open Supabase SQL Editor.
+2. Run `005_live_auction_and_captain_login.sql` once.
+3. If an older V4 migration was partially run, this script recreates the affected functions/policies safely.
+4. Do not put a Supabase service-role/secret key into the website.
 
-## Admin
-- admin.html
-- admin-dashboard.html
-- admin-create.html
-- admin-tournament.html?slug=TOURNAMENT-SLUG
-- admin-teams.html?slug=TOURNAMENT-SLUG
-- admin-pre-auction.html?slug=TOURNAMENT-SLUG
-- admin-auction.html?slug=TOURNAMENT-SLUG
-
-Run the pre-auction SQL before using the setup pages.
+## Website
+Upload/replace the files in your GitHub Pages repository with this package.
