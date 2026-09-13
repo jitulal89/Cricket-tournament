@@ -1,0 +1,50 @@
+name: Extract Cricket Tournament Project
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract ZIP
+        run: |
+          mkdir -p /tmp/project
+          unzip -o cricket-tournament-clean.zip -d /tmp/project
+
+      - name: Find project folder
+        run: |
+          echo "Extracted files:"
+          find /tmp/project -maxdepth 3 -type f | head -100
+
+      - name: Copy project
+        run: |
+          PROJECT=$(find /tmp/project -name package.json -type f | head -1 | xargs dirname)
+
+          echo "Project folder: $PROJECT"
+
+          cp -R "$PROJECT"/. ./
+
+      - name: Remove ZIP
+        run: |
+          rm -f cricket-tournament-clean.zip
+
+      - name: Remove nested git files
+        run: |
+          rm -rf .git/modules
+          find . -type d -name ".git" -not -path "./.git" -prune -exec rm -rf {} +
+
+      - name: Commit project
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Add Cricket Tournament application" || echo "Nothing to commit"
+          git push
