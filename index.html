@@ -46,6 +46,18 @@ const logoutNav = document.getElementById("logoutNav");
 function esc(v=""){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
 function go(hash){location.hash=hash}
 function msg(text,type="ok"){return `<div class="msg ${type}">${esc(text)}</div>`}
+function slugify(v=""){return String(v).trim().toLowerCase().replace(/[^a-z0-9-]+/g,"-").replace(/^-|-$/g,"")}
+async function uploadLogo(file, tournamentId="new"){
+  if(!file)return null;
+  const {data:{user}}=await sb.auth.getUser();
+  if(!user)throw new Error("Please sign in as an administrator.");
+  const ext=(file.name.split(".").pop()||"png").toLowerCase().replace(/[^a-z0-9]/g,"")||"png";
+  const path=`${user.id}/${tournamentId}/${Date.now()}.${ext}`;
+  const {error}=await sb.storage.from("tournament-logos").upload(path,file,{upsert:true,contentType:file.type||"image/png"});
+  if(error)throw error;
+  const {data}=sb.storage.from("tournament-logos").getPublicUrl(path);
+  return data.publicUrl;
+}
 
 async function refreshNav(){
   const {data:{session}}=await sb.auth.getSession();
@@ -114,14 +126,15 @@ async function admin(){
 
 function createTournament(){
  app.innerHTML=`
- <div class="card" style="max-width:700px;margin:auto">
- <h2>Create Tournament</h2><p class="muted">This creates an independent tournament with its own public registration page.</p>
+ <div class="card" style="max-width:760px;margin:auto">
+ <h2>Create Tournament</h2><p class="muted">Create an independent tournament with its own branding, registration and auction setup. Auction settings can be changed later.</p>
  <div id="createMsg"></div>
  <label>Tournament name *</label><input id="tName" placeholder="City Premier League 2027">
  <label>URL slug *</label><input id="tSlug" placeholder="city-premier-league-2027">
  <label>Description</label><textarea id="tDesc" rows="3"></textarea>
- <label>Tournament logo URL</label><input id="tLogo" placeholder="https://.../logo.png">
- <small class="muted">We will add direct logo upload after the storage bucket is enabled.</small>
+ <label>Tournament logo</label><input id="tLogoFile" type="file" accept="image/*">
+ <small class="muted">Upload PNG, JPG, WEBP or another image. The logo will be stored in Supabase Storage.</small>
+ <div id="logoPreview" class="row" style="margin:8px 0 14px"></div>
  <label>Maximum teams</label><input id="maxTeams" type="number" min="1" value="6">
  <label>Maximum players</label><input id="maxPlayers" type="number" min="1" value="100">
  <label>Registration opens</label><input id="regOpen" type="datetime-local">
@@ -131,22 +144,27 @@ function createTournament(){
  <select id="tStatus"><option value="draft">Draft</option><option value="registration_open">Open Registration</option></select>
  <hr>
  <h3>Auction Settings</h3>
+ <p class="muted">These are initial settings only. You can update them from the tournament management page later.</p>
  <label>Auction mode</label>
  <select id="auctionMode"><option value="category">Category based</option><option value="open">Open auction</option></select>
- <label>Default minimum bid</label><input id="minBid" type="number" min="0" value="100">
+ <label>Default minimum bid (used for open auction)</label><input id="minBid" type="number" min="0" value="100">
  <label>Bid increment</label><input id="bidInc" type="number" min="1" value="10">
  <label>Starting team purse</label><input id="purse" type="number" min="0" value="1000">
  <div class="row"><button class="btn secondary" onclick="go('#/admin')">Cancel</button><button class="btn" onclick="saveTournament()">Create Tournament</button></div>
  </div>`;
+ document.getElementById("tLogoFile").addEventListener("change",e=>{
+   const f=e.target.files?.[0],p=document.getElementById("logoPreview");
+   p.innerHTML=f?`<img class="logo" src="${URL.createObjectURL(f)}"><span class="muted">${esc(f.name)}</span>`:"";
+ });
 }
 async function saveTournament(){
  const m=document.getElementById("createMsg");
- const slug=tSlug.value.trim().toLowerCase().replace(/[^a-z0-9-]+/g,"-").replace(/^-|-$/g,"");
+ const slug=slugify(tSlug.value);
  if(!tName.value.trim()||!slug){m.innerHTML=msg("Tournament name and slug are required.","err");return}
  const {data:{user}}=await sb.auth.getUser();
  if(!user || !(await isAdmin())){go("#/login");return}
  const {data:t,error}=await sb.from("tournaments").insert({
-   name:tName.value.trim(),slug,description:tDesc.value.trim()||null,logo_url:tLogo.value.trim()||null,
+   name:tName.value.trim(),slug,description:tDesc.value.trim()||null,
    max_teams:Number(maxTeams.value)||null,max_players:Number(maxPlayers.value)||null,
    registration_open_at:regOpen.value?new Date(regOpen.value).toISOString():null,
    registration_close_at:regClose.value?new Date(regClose.value).toISOString():null,
@@ -154,6 +172,14 @@ async function saveTournament(){
    status:tStatus.value,created_by:user.id
  }).select().single();
  if(error){m.innerHTML=msg(error.message,"err");return}
+ let logoUrl=null;
+ try{
+   logoUrl=await uploadLogo(document.getElementById("tLogoFile").files?.[0],t.id);
+   if(logoUrl){
+     const {error:le}=await sb.from("tournaments").update({logo_url:logoUrl}).eq("id",t.id);
+     if(le)throw le;
+   }
+ }catch(e){m.innerHTML=msg("Tournament created, but logo upload failed: "+e.message,"err");return}
  const {error:ae}=await sb.from("auction_settings").insert({
    tournament_id:t.id,auction_enabled:true,auction_mode:auctionMode.value,
    default_minimum_bid:Number(minBid.value)||0,bid_increment:Number(bidInc.value)||10,starting_purse:Number(purse.value)||0
@@ -220,15 +246,81 @@ async function manageTournament(slug){
  if(!(await isAdmin())){go("#/login");return}
  const {data:t}=await sb.from("tournaments").select("*").eq("slug",slug).single();
  if(!t){app.innerHTML=`<div class="card">Tournament not found.</div>`;return}
- const {data:regs}=await sb.from("player_registrations").select("id,status,registered_at,players(full_name,display_name,phone,playing_role,cricheroes_profile_url)").eq("tournament_id",t.id).order("registered_at",{ascending:false});
+ const [{data:regs},{data:auction},{data:cats}]=await Promise.all([
+   sb.from("player_registrations").select("id,status,registered_at,players(full_name,display_name,phone,playing_role,cricheroes_profile_url)").eq("tournament_id",t.id).order("registered_at",{ascending:false}),
+   sb.from("auction_settings").select("*").eq("tournament_id",t.id).maybeSingle(),
+   sb.from("auction_categories").select("*").eq("tournament_id",t.id).order("name",{ascending:true})
+ ]);
  const counts={pending:0,approved:0,rejected:0,withdrawn:0};(regs||[]).forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
  app.innerHTML=`
- <div class="row" style="justify-content:space-between"><div><h1 style="font-size:34px">${esc(t.name)}</h1><p class="muted">Tournament management</p></div><button class="btn secondary" onclick="go('#/admin')">← Back</button></div>
+ <div class="row" style="justify-content:space-between;margin-bottom:18px">
+   <div class="row">
+     ${t.logo_url?`<img class="logo" src="${esc(t.logo_url)}">`:"<div class='logo'>🏏</div>"}
+     <div><h1 style="font-size:34px;margin:0">${esc(t.name)}</h1><p class="muted">Tournament management</p></div>
+   </div>
+   <button class="btn secondary" onclick="go('#/admin')">← Back</button>
+ </div>
+
  <div class="grid">
   <div class="card"><div class="stat">${(regs||[]).length}</div><div class="muted">Registrations</div></div>
   <div class="card"><div class="stat">${counts.pending||0}</div><div class="muted">Pending</div></div>
   <div class="card"><div class="stat">${counts.approved||0}</div><div class="muted">Approved</div></div>
  </div>
+
+ <div class="card" style="margin-top:18px">
+  <h2>Tournament Settings</h2>
+  <div id="settingsMsg"></div>
+  <div class="grid">
+   <div>
+    <label>Registration status</label>
+    <select id="editStatus"><option value="draft">Draft</option><option value="registration_open">Open Registration</option><option value="registration_closed">Closed</option></select>
+   </div>
+   <div>
+    <label>Logo</label>
+    <input id="editLogoFile" type="file" accept="image/*">
+   </div>
+  </div>
+  <div class="row">
+   ${t.logo_url?`<img class="logo" src="${esc(t.logo_url)}">`:"<span class='muted'>No logo uploaded</span>"}
+   <button class="btn" onclick="saveTournamentSettings('${encodeURIComponent(slug)}','${t.id}')">Save Tournament Settings</button>
+  </div>
+ </div>
+
+ <div class="card" style="margin-top:18px">
+  <h2>Auction Settings</h2>
+  <p class="muted">You can change these settings any time before the auction.</p>
+  <div id="auctionMsg"></div>
+  <div class="grid">
+   <div><label>Auction mode</label><select id="editAuctionMode"><option value="category">Category based</option><option value="open">Open auction</option></select></div>
+   <div><label>Default minimum bid</label><input id="editMinBid" type="number" min="0"></div>
+   <div><label>Bid increment</label><input id="editBidInc" type="number" min="1"></div>
+   <div><label>Starting team purse</label><input id="editPurse" type="number" min="0"></div>
+  </div>
+  <button class="btn" onclick="saveAuctionSettings('${t.id}')">Save Auction Settings</button>
+ </div>
+
+ <div class="card" style="margin-top:18px">
+  <div class="row" style="justify-content:space-between">
+   <div><h2 style="margin-bottom:4px">Auction Categories</h2><p class="muted">Each category has its own minimum bid.</p></div>
+  </div>
+  <div id="categoryMsg"></div>
+  <div class="grid">
+   <div><label>Category name</label><input id="newCatName" placeholder="A Grade"></div>
+   <div><label>Minimum bid</label><input id="newCatBid" type="number" min="0" value="${Number(auction?.default_minimum_bid)||100}"></div>
+  </div>
+  <button class="btn" onclick="addCategory('${t.id}','${encodeURIComponent(slug)}')">+ Add Category</button>
+  <div style="margin-top:16px">
+   ${(cats||[]).map(c=>`
+    <div style="border-top:1px solid #eee;padding:12px 0">
+      <div class="grid" style="align-items:end">
+       <div><label>Category</label><input id="catName_${c.id}" value="${esc(c.name||"")}"></div>
+       <div><label>Minimum bid</label><input id="catBid_${c.id}" type="number" min="0" value="${Number(c.minimum_bid)||0}"></div>
+       <div class="row"><button class="btn" onclick="updateCategory('${c.id}','${encodeURIComponent(slug)}')">Save</button><button class="btn danger" onclick="deleteCategory('${c.id}','${encodeURIComponent(slug)}')">Delete</button></div>
+      </div>
+    </div>`).join("")||"<p class='muted'>No categories yet. Add categories such as A Grade, B Grade, All-rounder, Bowler, etc.</p>"}
+  </div>
+ </div>
+
  <div class="card" style="margin-top:18px"><h2>Player Registrations</h2>
  ${(regs||[]).map(r=>`<div style="border-top:1px solid #eee;padding:14px 0">
    <div class="row" style="justify-content:space-between"><div><strong>${esc(r.players?.display_name||r.players?.full_name)}</strong><br><span class="muted">${esc(r.players?.playing_role||"Role not provided")} · ${esc(r.players?.phone||"")}</span></div><span class="pill">${esc(r.status)}</span></div>
@@ -236,6 +328,62 @@ async function manageTournament(slug){
    ${r.status==="pending"?`<div class="row"><button class="btn" onclick="updateReg('${r.id}','approved','${encodeURIComponent(slug)}')">Approve</button><button class="btn danger" onclick="updateReg('${r.id}','rejected','${encodeURIComponent(slug)}')">Reject</button></div>`:""}
  </div>`).join("")||"<p class='muted'>No registrations yet.</p>"}
  </div>`;
+ document.getElementById("editStatus").value=t.status;
+ document.getElementById("editAuctionMode").value=auction?.auction_mode||"category";
+ document.getElementById("editMinBid").value=Number(auction?.default_minimum_bid)||0;
+ document.getElementById("editBidInc").value=Number(auction?.bid_increment)||10;
+ document.getElementById("editPurse").value=Number(auction?.starting_purse)||0;
+}
+
+async function saveTournamentSettings(slug,tournamentId){
+ const m=document.getElementById("settingsMsg");
+ try{
+   let logoUrl=null;
+   const file=document.getElementById("editLogoFile").files?.[0];
+   if(file) logoUrl=await uploadLogo(file,tournamentId);
+   const patch={status:document.getElementById("editStatus").value};
+   if(logoUrl)patch.logo_url=logoUrl;
+   const {error}=await sb.from("tournaments").update(patch).eq("id",tournamentId);
+   if(error)throw error;
+   m.innerHTML=msg("Tournament settings saved.");
+   setTimeout(()=>manageTournament(decodeURIComponent(slug)),500);
+ }catch(e){m.innerHTML=msg(e.message,"err")}
+}
+
+async function saveAuctionSettings(tournamentId){
+ const m=document.getElementById("auctionMsg");
+ const patch={
+   auction_enabled:true,
+   auction_mode:document.getElementById("editAuctionMode").value,
+   default_minimum_bid:Number(document.getElementById("editMinBid").value)||0,
+   bid_increment:Number(document.getElementById("editBidInc").value)||1,
+   starting_purse:Number(document.getElementById("editPurse").value)||0
+ };
+ const {error}=await sb.from("auction_settings").update(patch).eq("tournament_id",tournamentId);
+ m.innerHTML=error?msg(error.message,"err"):msg("Auction settings saved.");
+}
+
+async function addCategory(tournamentId,slug){
+ const m=document.getElementById("categoryMsg");
+ const name=document.getElementById("newCatName").value.trim();
+ const minimum_bid=Number(document.getElementById("newCatBid").value)||0;
+ if(!name){m.innerHTML=msg("Category name is required.","err");return}
+ const {error}=await sb.from("auction_categories").insert({tournament_id:tournamentId,name,minimum_bid});
+ if(error){m.innerHTML=msg(error.message,"err");return}
+ manageTournament(decodeURIComponent(slug));
+}
+async function updateCategory(id,slug){
+ const name=document.getElementById("catName_"+id).value.trim();
+ const minimum_bid=Number(document.getElementById("catBid_"+id).value)||0;
+ const {error}=await sb.from("auction_categories").update({name,minimum_bid}).eq("id",id);
+ if(error){alert(error.message);return}
+ manageTournament(decodeURIComponent(slug));
+}
+async function deleteCategory(id,slug){
+ if(!confirm("Delete this auction category?"))return;
+ const {error}=await sb.from("auction_categories").delete().eq("id",id);
+ if(error){alert(error.message);return}
+ manageTournament(decodeURIComponent(slug));
 }
 async function updateReg(id,status,slug){
  const {error}=await sb.from("player_registrations").update({status,reviewed_at:new Date().toISOString()}).eq("id",id);
