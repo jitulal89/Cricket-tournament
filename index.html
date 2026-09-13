@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Cricket Tournament Platform</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#f5f7fb;color:#172033}
+    a{color:inherit}.top{background:#111827;color:#fff;padding:16px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;position:sticky;top:0;z-index:5}
+    .brand{font-weight:800;font-size:20px}.nav{display:flex;gap:8px;flex-wrap:wrap}.nav button{background:transparent;color:#fff;border:1px solid #ffffff33;padding:8px 12px;border-radius:9px}
+    main{max-width:1100px;margin:auto;padding:28px 16px}.hero{background:linear-gradient(135deg,#111827,#26354d);color:#fff;border-radius:20px;padding:42px 26px;margin-bottom:24px}
+    h1{font-size:clamp(32px,6vw,56px);margin:0 0 12px}.hero p{font-size:18px;color:#d1d5db;max-width:680px}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}.card{background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:20px;box-shadow:0 5px 20px #00000008}
+    .card h2,.card h3{margin-top:0}.btn{border:0;border-radius:10px;padding:11px 16px;background:#2563eb;color:#fff;font-weight:700;cursor:pointer}.btn.secondary{background:#e5e7eb;color:#111827}.btn.danger{background:#dc2626}.btn:disabled{opacity:.5}
+    input,select,textarea{width:100%;padding:12px;border:1px solid #d1d5db;border-radius:9px;margin:6px 0 14px;background:#fff;font:inherit}label{font-weight:650;font-size:14px}
+    .muted{color:#667085}.msg{padding:12px;border-radius:10px;margin:12px 0;display:none}.msg.ok{display:block;background:#ecfdf3;color:#166534}.msg.err{display:block;background:#fef2f2;color:#991b1b}
+    .logo{width:72px;height:72px;object-fit:contain;border-radius:12px;background:#f3f4f6}.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.hidden{display:none!important}
+    .stat{font-size:30px;font-weight:800}.pill{display:inline-block;background:#eef2ff;color:#3730a3;padding:5px 9px;border-radius:999px;font-size:12px;font-weight:700}
+    footer{text-align:center;color:#6b7280;padding:30px}
+  </style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">🏏 Cricket Tournament</div>
+  <nav class="nav">
+    <button onclick="go('#/')">Home</button>
+    <button id="adminNav" onclick="go('#/admin')" class="hidden">Admin</button>
+    <button id="loginNav" onclick="go('#/login')">Admin Login</button>
+    <button id="logoutNav" onclick="logout()" class="hidden">Logout</button>
+  </nav>
+</header>
+<main id="app"></main>
+<footer>Cricket Tournament Platform</footer>
+
+<script>
+const SUPABASE_URL = "https://jauulapjawbusltlqyau.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_QkA-HpPACdhHRlA7DKYtFA_GvDjT7Qi";
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+const app = document.getElementById("app");
+const loginNav = document.getElementById("loginNav");
+const adminNav = document.getElementById("adminNav");
+const logoutNav = document.getElementById("logoutNav");
+
+function esc(v=""){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
+function go(hash){location.hash=hash}
+function msg(text,type="ok"){return `<div class="msg ${type}">${esc(text)}</div>`}
+
+async function refreshNav(){
+  const {data:{session}}=await sb.auth.getSession();
+  loginNav.classList.toggle("hidden",!!session);
+  adminNav.classList.toggle("hidden",!session);
+  logoutNav.classList.toggle("hidden",!session);
+}
+async function isAdmin(){
+  const {data:{user}}=await sb.auth.getUser();
+  if(!user)return false;
+  const {data}=await sb.from("admin_profiles").select("id,role").eq("id",user.id).maybeSingle();
+  return !!data;
+}
+async function logout(){await sb.auth.signOut();go("#/");await refreshNav();}
+
+function home(){
+ app.innerHTML=`
+ <section class="hero">
+   <div class="pill">TOURNAMENT MANAGEMENT</div>
+   <h1>Create. Register. Auction. Play.</h1>
+   <p>A standalone platform for cricket tournaments. Create your tournament, share a registration link, collect player profiles and prepare your player auction.</p>
+   <div class="row">
+     <button class="btn" onclick="go('#/login')">Admin Login</button>
+   </div>
+ </section>
+ <div class="grid">
+  <div class="card"><h3>🏆 Create Tournaments</h3><p class="muted">Give every tournament its own name, branding and registration settings.</p></div>
+  <div class="card"><h3>📝 Player Registration</h3><p class="muted">Collect player details, playing role and CricHeroes profile URL.</p></div>
+  <div class="card"><h3>🔨 Auction Ready</h3><p class="muted">Configure category-based or open auctions with points and team purses.</p></div>
+ </div>`;
+}
+
+function login(){
+ app.innerHTML=`
+ <div class="card" style="max-width:460px;margin:30px auto">
+ <h2>Admin Login</h2><p class="muted">Sign in to manage tournaments.</p>
+ <div id="loginMsg"></div>
+ <label>Email</label><input id="email" type="email" autocomplete="email">
+ <label>Password</label><input id="password" type="password" autocomplete="current-password">
+ <button class="btn" onclick="doLogin()">Sign in</button>
+ </div>`;
+}
+async function doLogin(){
+ const m=document.getElementById("loginMsg");
+ const {error}=await sb.auth.signInWithPassword({email:email.value.trim(),password:password.value});
+ if(error){m.innerHTML=msg(error.message,"err");return}
+ if(!(await isAdmin())){await sb.auth.signOut();m.innerHTML=msg("This account is not an administrator.","err");return}
+ await refreshNav();go("#/admin");
+}
+
+async function admin(){
+ if(!(await isAdmin())){go("#/login");return}
+ const {data:ts,error}=await sb.from("tournaments").select("*").order("created_at",{ascending:false});
+ if(error){app.innerHTML=`<div class="card">${msg(error.message,"err")}</div>`;return}
+ app.innerHTML=`
+ <div class="row" style="justify-content:space-between;margin-bottom:18px"><div><h1 style="font-size:34px">Admin Dashboard</h1><p class="muted">Manage your tournaments.</p></div><button class="btn" onclick="go('#/admin/create')">+ Create Tournament</button></div>
+ <div class="grid">${(ts||[]).map(t=>`
+   <div class="card">
+    <div class="row">${t.logo_url?`<img class="logo" src="${esc(t.logo_url)}">`:"<div class='logo'>🏏</div>"}
+      <div><h3>${esc(t.name)}</h3><span class="pill">${esc(t.status)}</span></div></div>
+    <p class="muted">${esc(t.description||"No description")}</p>
+    <p><strong>Registration:</strong> ${t.status==="registration_open"?"Open":"Closed"}</p>
+    <div class="row"><button class="btn" onclick="go('#/admin/tournament/${encodeURIComponent(t.slug)}')">Manage</button><button class="btn secondary" onclick="go('#/tournament/${encodeURIComponent(t.slug)}')">Public Page</button></div>
+   </div>`).join("")||`<div class="card"><h3>No tournaments yet</h3><p>Create your first tournament.</p></div>`}</div>`;
+}
+
+function createTournament(){
+ app.innerHTML=`
+ <div class="card" style="max-width:700px;margin:auto">
+ <h2>Create Tournament</h2><p class="muted">This creates an independent tournament with its own public registration page.</p>
+ <div id="createMsg"></div>
+ <label>Tournament name *</label><input id="tName" placeholder="City Premier League 2027">
+ <label>URL slug *</label><input id="tSlug" placeholder="city-premier-league-2027">
+ <label>Description</label><textarea id="tDesc" rows="3"></textarea>
+ <label>Tournament logo URL</label><input id="tLogo" placeholder="https://.../logo.png">
+ <small class="muted">We will add direct logo upload after the storage bucket is enabled.</small>
+ <label>Maximum teams</label><input id="maxTeams" type="number" min="1" value="6">
+ <label>Maximum players</label><input id="maxPlayers" type="number" min="1" value="100">
+ <label>Registration opens</label><input id="regOpen" type="datetime-local">
+ <label>Registration closes</label><input id="regClose" type="datetime-local">
+ <label>Tournament starts</label><input id="tourStart" type="datetime-local">
+ <label>Registration status</label>
+ <select id="tStatus"><option value="draft">Draft</option><option value="registration_open">Open Registration</option></select>
+ <hr>
+ <h3>Auction Settings</h3>
+ <label>Auction mode</label>
+ <select id="auctionMode"><option value="category">Category based</option><option value="open">Open auction</option></select>
+ <label>Default minimum bid</label><input id="minBid" type="number" min="0" value="100">
+ <label>Bid increment</label><input id="bidInc" type="number" min="1" value="10">
+ <label>Starting team purse</label><input id="purse" type="number" min="0" value="1000">
+ <div class="row"><button class="btn secondary" onclick="go('#/admin')">Cancel</button><button class="btn" onclick="saveTournament()">Create Tournament</button></div>
+ </div>`;
+}
+async function saveTournament(){
+ const m=document.getElementById("createMsg");
+ const slug=tSlug.value.trim().toLowerCase().replace(/[^a-z0-9-]+/g,"-").replace(/^-|-$/g,"");
+ if(!tName.value.trim()||!slug){m.innerHTML=msg("Tournament name and slug are required.","err");return}
+ const {data:{user}}=await sb.auth.getUser();
+ if(!user || !(await isAdmin())){go("#/login");return}
+ const {data:t,error}=await sb.from("tournaments").insert({
+   name:tName.value.trim(),slug,description:tDesc.value.trim()||null,logo_url:tLogo.value.trim()||null,
+   max_teams:Number(maxTeams.value)||null,max_players:Number(maxPlayers.value)||null,
+   registration_open_at:regOpen.value?new Date(regOpen.value).toISOString():null,
+   registration_close_at:regClose.value?new Date(regClose.value).toISOString():null,
+   tournament_start_at:tourStart.value?new Date(tourStart.value).toISOString():null,
+   status:tStatus.value,created_by:user.id
+ }).select().single();
+ if(error){m.innerHTML=msg(error.message,"err");return}
+ const {error:ae}=await sb.from("auction_settings").insert({
+   tournament_id:t.id,auction_enabled:true,auction_mode:auctionMode.value,
+   default_minimum_bid:Number(minBid.value)||0,bid_increment:Number(bidInc.value)||10,starting_purse:Number(purse.value)||0
+ });
+ if(ae){m.innerHTML=msg("Tournament created, but auction settings failed: "+ae.message,"err");return}
+ await sb.from("registration_forms").insert({tournament_id:t.id});
+ go("#/admin");
+}
+
+async function publicTournament(slug){
+ const {data:t,error}=await sb.from("tournaments").select("*").eq("slug",slug).maybeSingle();
+ if(error||!t){app.innerHTML=`<div class="card"><h2>Tournament not found</h2><p>${esc(error?.message||"Invalid tournament link.")}</p></div>`;return}
+ app.innerHTML=`
+ <div class="hero">
+  <div class="row">${t.logo_url?`<img class="logo" src="${esc(t.logo_url)}">`:"<div class='logo'>🏏</div>"}
+   <div><div class="pill">${esc(t.status)}</div><h1 style="font-size:42px">${esc(t.name)}</h1></div>
+  </div>
+  <p>${esc(t.description||"Welcome to the tournament.")}</p>
+  ${t.status==="registration_open"?`<button class="btn" onclick="go('#/tournament/${encodeURIComponent(t.slug)}/register')">Register as a Player</button>`:"<span class='pill'>Registration is currently closed</span>"}
+ </div>
+ <div class="grid">
+  <div class="card"><div class="stat">👥</div><h3>Players</h3><p class="muted">Registered players will appear here.</p></div>
+  <div class="card"><div class="stat">🔨</div><h3>Auction</h3><p class="muted">Auction details will be available when the auction is prepared.</p></div>
+  <div class="card"><div class="stat">🏆</div><h3>Teams</h3><p class="muted">Teams and squads will appear here.</p></div>
+ </div>`;
+}
+
+async function register(slug){
+ const {data:t}=await sb.from("tournaments").select("*").eq("slug",slug).maybeSingle();
+ if(!t||t.status!=="registration_open"){app.innerHTML=`<div class="card"><h2>Registration unavailable</h2><p>This tournament is not accepting registrations.</p></div>`;return}
+ app.innerHTML=`
+ <div class="card" style="max-width:720px;margin:auto">
+ <div class="row">${t.logo_url?`<img class="logo" src="${esc(t.logo_url)}">`:"<div class='logo'>🏏</div>"}<div><h2>${esc(t.name)}</h2><p class="muted">Player Registration</p></div></div>
+ <div id="regMsg"></div>
+ <label>Full name *</label><input id="pName" placeholder="Rahul Sharma">
+ <label>Display name</label><input id="pDisplay" placeholder="Rahul">
+ <label>Phone *</label><input id="pPhone" type="tel">
+ <label>Email</label><input id="pEmail" type="email">
+ <label>Date of birth</label><input id="pDob" type="date">
+ <label>Batting style</label><select id="bat"><option value="">Select</option><option value="right_hand">Right hand</option><option value="left_hand">Left hand</option></select>
+ <label>Bowling style</label><select id="bowl"><option value="">Select</option><option value="right_arm_fast">Right arm fast</option><option value="right_arm_medium">Right arm medium</option><option value="right_arm_spin">Right arm spin</option><option value="left_arm_fast">Left arm fast</option><option value="left_arm_medium">Left arm medium</option><option value="left_arm_spin">Left arm spin</option><option value="none">Does not bowl</option></select>
+ <label>Playing role</label><select id="role"><option value="">Select</option><option value="batsman">Batsman</option><option value="bowler">Bowler</option><option value="all_rounder">All-rounder</option><option value="wicket_keeper">Wicket keeper</option></select>
+ <label>CricHeroes profile URL</label><input id="ch" type="url" placeholder="https://cricheroes.com/...">
+ <button class="btn" onclick="submitRegistration('${esc(slug)}')">Submit Registration</button>
+ </div>`;
+}
+async function submitRegistration(slug){
+ const m=document.getElementById("regMsg");
+ if(!pName.value.trim()||!pPhone.value.trim()){m.innerHTML=msg("Name and phone are required.","err");return}
+ const {data:t}=await sb.from("tournaments").select("id,max_players").eq("slug",slug).single();
+ if(!t){m.innerHTML=msg("Tournament not found.","err");return}
+ const {data:p,error:pe}=await sb.from("players").insert({
+   full_name:pName.value.trim(),display_name:pDisplay.value.trim()||null,phone:pPhone.value.trim(),
+   email:pEmail.value.trim()||null,date_of_birth:pDob.value||null,batting_style:bat.value||null,
+   bowling_style:bowl.value||null,playing_role:role.value||null,cricheroes_profile_url:ch.value.trim()||null
+ }).select().single();
+ if(pe){m.innerHTML=msg(pe.message,"err");return}
+ const {error:re}=await sb.from("player_registrations").insert({tournament_id:t.id,player_id:p.id,status:"pending"});
+ if(re){m.innerHTML=msg(re.message,"err");return}
+ app.innerHTML=`<div class="card" style="max-width:600px;margin:40px auto;text-align:center"><div style="font-size:54px">✅</div><h2>Registration submitted!</h2><p class="muted">Your registration has been received. The tournament administrator will review it.</p><button class="btn" onclick="go('#/tournament/${encodeURIComponent(slug)}')">Back to Tournament</button></div>`;
+}
+
+async function manageTournament(slug){
+ if(!(await isAdmin())){go("#/login");return}
+ const {data:t}=await sb.from("tournaments").select("*").eq("slug",slug).single();
+ if(!t){app.innerHTML=`<div class="card">Tournament not found.</div>`;return}
+ const {data:regs}=await sb.from("player_registrations").select("id,status,registered_at,players(full_name,display_name,phone,playing_role,cricheroes_profile_url)").eq("tournament_id",t.id).order("registered_at",{ascending:false});
+ const counts={pending:0,approved:0,rejected:0,withdrawn:0};(regs||[]).forEach(r=>counts[r.status]=(counts[r.status]||0)+1);
+ app.innerHTML=`
+ <div class="row" style="justify-content:space-between"><div><h1 style="font-size:34px">${esc(t.name)}</h1><p class="muted">Tournament management</p></div><button class="btn secondary" onclick="go('#/admin')">← Back</button></div>
+ <div class="grid">
+  <div class="card"><div class="stat">${(regs||[]).length}</div><div class="muted">Registrations</div></div>
+  <div class="card"><div class="stat">${counts.pending||0}</div><div class="muted">Pending</div></div>
+  <div class="card"><div class="stat">${counts.approved||0}</div><div class="muted">Approved</div></div>
+ </div>
+ <div class="card" style="margin-top:18px"><h2>Player Registrations</h2>
+ ${(regs||[]).map(r=>`<div style="border-top:1px solid #eee;padding:14px 0">
+   <div class="row" style="justify-content:space-between"><div><strong>${esc(r.players?.display_name||r.players?.full_name)}</strong><br><span class="muted">${esc(r.players?.playing_role||"Role not provided")} · ${esc(r.players?.phone||"")}</span></div><span class="pill">${esc(r.status)}</span></div>
+   ${r.players?.cricheroes_profile_url?`<p><a href="${esc(r.players.cricheroes_profile_url)}" target="_blank" rel="noopener">View CricHeroes profile ↗</a></p>`:""}
+   ${r.status==="pending"?`<div class="row"><button class="btn" onclick="updateReg('${r.id}','approved','${encodeURIComponent(slug)}')">Approve</button><button class="btn danger" onclick="updateReg('${r.id}','rejected','${encodeURIComponent(slug)}')">Reject</button></div>`:""}
+ </div>`).join("")||"<p class='muted'>No registrations yet.</p>"}
+ </div>`;
+}
+async function updateReg(id,status,slug){
+ const {error}=await sb.from("player_registrations").update({status,reviewed_at:new Date().toISOString()}).eq("id",id);
+ if(error)alert(error.message); else manageTournament(decodeURIComponent(slug));
+}
+
+async function router(){
+ await refreshNav();
+ const h=location.hash||"#/";
+ const parts=h.replace(/^#/,"").split("/").filter(Boolean).map(decodeURIComponent);
+ if(parts[0]==="login")return login();
+ if(parts[0]==="admin"&&parts[1]==="create")return createTournament();
+ if(parts[0]==="admin"&&parts[1]==="tournament")return manageTournament(parts[2]);
+ if(parts[0]==="admin")return admin();
+ if(parts[0]==="tournament"&&parts[2]==="register")return register(parts[1]);
+ if(parts[0]==="tournament")return publicTournament(parts[1]);
+ home();
+}
+window.addEventListener("hashchange",router);
+sb.auth.onAuthStateChange(()=>refreshNav());
+router();
+</script>
+</body>
+</html>
