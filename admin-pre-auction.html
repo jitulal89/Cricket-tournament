@@ -11,7 +11,7 @@ let T=null, REGS=[], CATS=[], TEAMS=[], AUCTION=null;
 async function loadData(){
  const results=await Promise.all([
    sb.from("player_registrations").select("id,status,is_captain,auction_category_id,player_id,players(id,full_name,display_name,playing_role)").eq("tournament_id",T.id).eq("status","approved").order("registered_at"),
-   sb.from("auction_categories").select("id,name,minimum_bid").eq("tournament_id",T.id).order("name"),
+   sb.from("auction_categories").select("id,name,minimum_bid,auction_order").eq("tournament_id",T.id).order("auction_order",{ascending:true,nullsFirst:false}).order("name"),
    sb.from("teams").select("id,name,captain_id").eq("tournament_id",T.id).order("name"),
    sb.from("auction_settings").select("*").eq("tournament_id",T.id).maybeSingle()
  ]);
@@ -63,7 +63,7 @@ function render(){
 
  <div class="card section">
   <h2>2️⃣ Select Captains</h2>
-  <p class="muted">Captains are assigned directly to their team and are automatically excluded from the auction.</p>
+  <p class="muted">Captains are assigned directly to their team and are automatically excluded from the auction.</p><p><a class="btn secondary" href="admin-captains.html?slug=${encodeURIComponent(T.slug)}">👤 Manage Captain Login Accounts</a></p>
   ${TEAMS.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Team</th><th>Captain</th></tr></thead><tbody>
   ${TEAMS.map(t=>`<tr><td><strong>${esc(t.name)}</strong></td><td><select onchange="setCaptain('${t.id}',this.value)">
    <option value="">Select Captain</option>
@@ -74,15 +74,15 @@ function render(){
  </div>
 
  <div class="card section">
-  <h2>3️⃣ Auction Categories & Minimum Bids</h2>
-  <p class="muted">Each category has its own minimum bid. Manage categories here, then assign players below.</p>
+  <h2>3️⃣ Auction Categories, Minimum Bids & Order</h2>
+  <p class="muted">Each category has its own minimum bid. Use ↑ / ↓ to decide which category goes first. Players inside each category will be randomly shuffled when the auction starts.</p>
   <div class="grid">
    <div><label>New category</label><input id="catName" placeholder="A Grade"></div>
    <div><label>Minimum bid</label><input id="catBid" type="number" min="0" value="${Number(AUCTION?.default_minimum_bid)||100}"></div>
    <div class="row" style="align-items:end"><button class="btn" onclick="addCat()">+ Add Category</button></div>
   </div>
-  ${CATS.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Category</th><th>Minimum Bid</th><th></th></tr></thead><tbody>
-  ${CATS.map(c=>`<tr><td><input id="cn_${c.id}" value="${esc(c.name)}"></td><td><input id="cb_${c.id}" type="number" min="0" value="${Number(c.minimum_bid)||0}"></td><td><button class="btn" onclick="updateCat('${c.id}')">Save</button> <button class="btn danger" onclick="deleteCat('${c.id}')">Delete</button></td></tr>`).join("")}</tbody></table></div>`
+  ${CATS.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Order / Category</th><th>Minimum Bid</th><th>Actions</th></tr></thead><tbody>
+  ${CATS.map((c,i)=>`<tr><td><strong>${i+1}. ${esc(c.name)}</strong><br><input id="cn_${c.id}" value="${esc(c.name)}"></td><td><input id="cb_${c.id}" type="number" min="0" value="${Number(c.minimum_bid)||0}"></td><td><button class="btn secondary" onclick="moveCat('${c.id}',-1)" ${i===0?"disabled":""}>↑</button> <button class="btn secondary" onclick="moveCat('${c.id}',1)" ${i===CATS.length-1?"disabled":""}>↓</button> <button class="btn" onclick="updateCat('${c.id}')">Save</button> <button class="btn danger" onclick="deleteCat('${c.id}')">Delete</button></td></tr>`).join("")}</tbody></table></div>`
   :`<div class="empty">No categories created yet.</div>`}
   <div class="${c.catsOK?'msg ok':'warning'}">${c.catsOK?'✅ Categories are available.':'⚠️ Create at least one category.'}</div>
  </div>
@@ -148,7 +148,7 @@ async function setCaptain(teamId,playerId){
 async function addCat(){
  const name=catName.value.trim(), bid=Number(catBid.value)||0;
  if(!name)return alert("Enter a category name.");
- const {error}=await sb.from("auction_categories").insert({tournament_id:T.id,name,minimum_bid:bid});
+ const {error}=await sb.from("auction_categories").insert({tournament_id:T.id,name,minimum_bid:bid,auction_order:CATS.length+1});
  if(error)return alert(error.message);
  await loadData();render();
 }
@@ -158,6 +158,7 @@ async function updateCat(id){
  if(error)return alert(error.message);
  await loadData();render();
 }
+async function moveCat(id,dir){ const i=CATS.findIndex(c=>c.id===id),j=i+dir;if(i<0||j<0||j>=CATS.length)return;[CATS[i],CATS[j]]=[CATS[j],CATS[i]];for(let k=0;k<CATS.length;k++){const {error}=await sb.from('auction_categories').update({auction_order:k+1}).eq('id',CATS[k].id);if(error)return alert(error.message)}await loadData();render();}
 async function deleteCat(id){
  if(!confirm("Delete this category? Players assigned to it will become uncategorized."))return;
  const {error}=await sb.from("auction_categories").delete().eq("id",id);
@@ -170,7 +171,7 @@ async function setCategory(regId,catId){
  await loadData();render();
 }
 async function markReady(){
- const c=checks();if(!c.ready)return alert("Complete all setup steps first.");
+ const c=checks();if(!c.ready)return alert("Complete all setup steps first."); for(let i=0;i<CATS.length;i++){const {error:e}=await sb.from('auction_categories').update({auction_order:i+1}).eq('id',CATS[i].id);if(e)return alert(e.message);}
  const {error}=await sb.from("auction_settings").update({auction_status:"ready"}).eq("tournament_id",T.id);
  if(error)return alert(error.message);
  await loadData();render();
