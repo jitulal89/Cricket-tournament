@@ -41,6 +41,7 @@ async function setNav(){
  :`<a href="index.html">Home</a><a href="admin.html">Admin Login</a>`;
 }
 async function getTournament(slug){
+ if(!slug)throw new Error("Tournament slug is missing. Open this page from the tournament link.");
  const {data,error}=await sb.from("tournaments").select("*").eq("slug",slug).maybeSingle();
  if(error)throw error;if(!data)throw new Error("Tournament not found.");
  return data;

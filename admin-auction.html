@@ -11,13 +11,10 @@ async function loadBase(){
    sb.from('auction_settings').select('*').eq('tournament_id',T.id).maybeSingle(),
    sb.from('auction_categories').select('id,name,minimum_bid,auction_order').eq('tournament_id',T.id).order('auction_order',{ascending:true,nullsFirst:false}).order('name'),
    sb.from('teams').select('id,name,captain_id').eq('tournament_id',T.id).order('name'),
-   sb.from('player_registrations').select('id,player_id,auction_category_id,is_captain,status').eq('tournament_id',T.id).eq('status','approved')
+   sb.from('player_registrations').select('id,player_id,auction_category_id,is_captain,status,players(id,full_name,display_name,playing_role)').eq('tournament_id',T.id).eq('status','approved')
   ]);
   for(const x of [a,c,tm,r])if(x.error)throw x.error;
-  A=a.data;CATS=c.data||[];TEAMS=tm.data||[]; const caps=new Set(TEAMS.map(x=>x.captain_id).filter(Boolean));
-  const regs=r.data||[]; const pids=[...new Set(regs.map(x=>x.player_id).filter(Boolean))]; let pmap={};
-  if(pids.length){const pr=await sb.from('players').select('id,full_name,display_name,playing_role').in('id',pids);if(pr.error)throw pr.error;(pr.data||[]).forEach(p=>pmap[p.id]=p);}
-  PLAYERS=regs.filter(x=>!caps.has(x.player_id)).map(x=>({...x,players:pmap[x.player_id]||null}));
+  A=a.data;CATS=c.data||[];TEAMS=tm.data||[]; const caps=new Set(TEAMS.map(x=>x.captain_id).filter(Boolean)); PLAYERS=(r.data||[]).filter(x=>!caps.has(x.player_id));
   CATMAP=Object.fromEntries(CATS.map(x=>[x.id,x]));
   const {data:s,error:se}=await sb.from('auction_sessions').select('*').eq('tournament_id',T.id).maybeSingle(); if(se)throw se; S=s;
   render(); subscribe();
