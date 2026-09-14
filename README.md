@@ -33,4 +33,5 @@ Deploy the function from the `supabase/functions/create-captain-account` folder,
 The live-auction RPC calls use the database parameter name `p_tournament_id`.
 
 
-V14: same-device captain session isolation, shared current auction player, richer player profile UI, and last-sale display. Run 007_v14_player_profile_fields.sql once.
+## V18
+Restored the normal Captain Login flow (no testing bypass). Captain login uses the current claim_captain_access signature. Admin player loading avoids nested auction_players -> players relationships.
