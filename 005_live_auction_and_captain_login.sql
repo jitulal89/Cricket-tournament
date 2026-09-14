@@ -172,7 +172,7 @@ $$;
 
 -- Start auction. Categories use auction_order; players are randomly shuffled inside each category.
 -- Existing auction_players rows are created/updated from approved registrations before the queue is built.
-CREATE OR REPLACE FUNCTION public.start_live_auction(p_tournament UUID)
+CREATE OR REPLACE FUNCTION public.start_live_auction(p_tournament_id UUID)
 RETURNS UUID LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE
   s UUID;
@@ -191,24 +191,24 @@ DECLARE
 BEGIN
   IF NOT public.is_admin() THEN RAISE EXCEPTION 'Administrator access required'; END IF;
 
-  SELECT id, status INTO s, r FROM public.auction_sessions WHERE tournament_id=p_tournament;
+  SELECT id, status INTO s, r FROM public.auction_sessions WHERE tournament_id=p_tournament_id;
   IF r.status IN ('live','completed') THEN
     RAISE EXCEPTION 'Auction is already %', r.status;
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM public.teams WHERE tournament_id=p_tournament) THEN
+  IF NOT EXISTS (SELECT 1 FROM public.teams WHERE tournament_id=p_tournament_id) THEN
     RAISE EXCEPTION 'No teams found';
   END IF;
 
   IF EXISTS (
     SELECT 1 FROM public.player_registrations pr
-    WHERE pr.tournament_id=p_tournament AND pr.status='approved'
+    WHERE pr.tournament_id=p_tournament_id AND pr.status='approved'
       AND pr.is_captain=FALSE AND pr.auction_category_id IS NULL
   ) THEN
     RAISE EXCEPTION 'Every non-captain player must be assigned to a category';
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM public.auction_categories WHERE tournament_id=p_tournament) THEN
+  IF NOT EXISTS (SELECT 1 FROM public.auction_categories WHERE tournament_id=p_tournament_id) THEN
     RAISE EXCEPTION 'No auction categories found';
   END IF;
 
@@ -216,7 +216,7 @@ BEGIN
   INSERT INTO public.auction_players(tournament_id, player_registration_id, category_id, auction_status)
   SELECT pr.tournament_id, pr.id, pr.auction_category_id, 'pending'
   FROM public.player_registrations pr
-  WHERE pr.tournament_id=p_tournament
+  WHERE pr.tournament_id=p_tournament_id
     AND pr.status='approved'
     AND pr.is_captain=FALSE
   ON CONFLICT (tournament_id, player_registration_id)
@@ -224,14 +224,14 @@ BEGIN
 
   IF s IS NULL THEN
     INSERT INTO public.auction_sessions(tournament_id,status)
-    VALUES(p_tournament,'ready') RETURNING id INTO s;
+    VALUES(p_tournament_id,'ready') RETURNING id INTO s;
   END IF;
 
   -- Build category order and a randomized player queue for every category.
   FOR cat IN
     SELECT id, auction_order, name
     FROM public.auction_categories
-    WHERE tournament_id=p_tournament
+    WHERE tournament_id=p_tournament_id
     ORDER BY auction_order NULLS LAST, name
   LOOP
     category_order_json := category_order_json || jsonb_build_array(cat.id::text);
@@ -240,7 +240,7 @@ BEGIN
     FROM (
       SELECT pr.player_id
       FROM public.player_registrations pr
-      WHERE pr.tournament_id=p_tournament
+      WHERE pr.tournament_id=p_tournament_id
         AND pr.status='approved'
         AND pr.is_captain=FALSE
         AND pr.auction_category_id=cat.id
@@ -262,13 +262,13 @@ BEGIN
   IF first_player IS NULL THEN RAISE EXCEPTION 'No auction players found'; END IF;
 
   SELECT COALESCE(starting_purse,1000) INTO purse
-  FROM public.auction_settings WHERE tournament_id=p_tournament;
+  FROM public.auction_settings WHERE tournament_id=p_tournament_id;
   purse := COALESCE(purse,1000);
 
   INSERT INTO public.auction_team_wallets(tournament_id,team_id,starting_purse,remaining_purse)
-  SELECT p_tournament,t.id,purse,purse
+  SELECT p_tournament_id,t.id,purse,purse
   FROM public.teams t
-  WHERE t.tournament_id=p_tournament
+  WHERE t.tournament_id=p_tournament_id
   ON CONFLICT(tournament_id,team_id)
   DO UPDATE SET starting_purse=EXCLUDED.starting_purse,
                 remaining_purse=EXCLUDED.starting_purse;
@@ -276,12 +276,12 @@ BEGIN
   SELECT ap.id INTO ap_id
   FROM public.auction_players ap
   JOIN public.player_registrations pr ON pr.id=ap.player_registration_id
-  WHERE ap.tournament_id=p_tournament AND pr.player_id=first_player;
+  WHERE ap.tournament_id=p_tournament_id AND pr.player_id=first_player;
 
   IF ap_id IS NULL THEN RAISE EXCEPTION 'Auction player record not found'; END IF;
 
   INSERT INTO public.auction_events(tournament_id,auction_player_id,status,current_bid,current_team_id,started_at)
-  VALUES(p_tournament,ap_id,'live',public.auction_minimum_bid(first_player),NULL,now())
+  VALUES(p_tournament_id,ap_id,'live',public.auction_minimum_bid(first_player),NULL,now())
   RETURNING id INTO event_id;
 
   UPDATE public.auction_players
@@ -300,14 +300,14 @@ BEGIN
       updated_at=now()
   WHERE id=s;
 
-  UPDATE public.auction_settings SET auction_status='live' WHERE tournament_id=p_tournament;
+  UPDATE public.auction_settings SET auction_status='live' WHERE tournament_id=p_tournament_id;
   RETURN s;
 END;
 $$;
 
 -- Place a bid atomically. Captain bids are restricted to that captain's assigned team.
 CREATE OR REPLACE FUNCTION public.place_live_auction_bid(
-  p_tournament UUID,
+  p_tournament_id UUID,
   p_team UUID,
   p_amount NUMERIC,
   p_source TEXT DEFAULT 'captain'
@@ -324,7 +324,7 @@ DECLARE
 BEGIN
   SELECT * INTO s
   FROM public.auction_sessions
-  WHERE tournament_id=p_tournament
+  WHERE tournament_id=p_tournament_id
   FOR UPDATE;
 
   IF s.id IS NULL OR s.status<>'live' OR s.current_player_id IS NULL THEN
@@ -335,7 +335,7 @@ BEGIN
 
   IF p_source='captain' AND NOT EXISTS(
     SELECT 1 FROM public.captain_profiles cp
-    WHERE cp.user_id=uid AND cp.team_id=p_team AND cp.tournament_id=p_tournament
+    WHERE cp.user_id=uid AND cp.team_id=p_team AND cp.tournament_id=p_tournament_id
   ) THEN
     RAISE EXCEPTION 'You can only bid for your assigned team';
   END IF;
@@ -347,14 +347,14 @@ BEGIN
   SELECT ap.id INTO ap_id
   FROM public.auction_players ap
   JOIN public.player_registrations pr ON pr.id=ap.player_registration_id
-  WHERE ap.tournament_id=p_tournament AND pr.player_id=s.current_player_id
+  WHERE ap.tournament_id=p_tournament_id AND pr.player_id=s.current_player_id
   LIMIT 1;
 
   IF ap_id IS NULL THEN RAISE EXCEPTION 'Current auction player record not found'; END IF;
 
   SELECT * INTO ae
   FROM public.auction_events
-  WHERE tournament_id=p_tournament
+  WHERE tournament_id=p_tournament_id
     AND auction_player_id=ap_id
     AND status='live'
   ORDER BY created_at DESC
@@ -365,13 +365,13 @@ BEGIN
 
   SELECT * INTO w
   FROM public.auction_team_wallets
-  WHERE tournament_id=p_tournament AND team_id=p_team
+  WHERE tournament_id=p_tournament_id AND team_id=p_team
   FOR UPDATE;
   IF w.id IS NULL THEN RAISE EXCEPTION 'Team purse not initialized'; END IF;
 
   minbid:=public.auction_minimum_bid(s.current_player_id);
   SELECT COALESCE(bid_increment,10) INTO inc
-  FROM public.auction_settings WHERE tournament_id=p_tournament;
+  FROM public.auction_settings WHERE tournament_id=p_tournament_id;
   inc:=COALESCE(inc,10);
 
   IF p_amount < minbid THEN RAISE EXCEPTION 'Bid must be at least %',minbid; END IF;
@@ -396,7 +396,7 @@ END;
 $$;
 
 -- Finish the current player, record the result, update purse/squad, then open the next player.
-CREATE OR REPLACE FUNCTION public.finish_current_auction_player(p_tournament UUID,p_result TEXT)
+CREATE OR REPLACE FUNCTION public.finish_current_auction_player(p_tournament_id UUID,p_result TEXT)
 RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE
   s public.auction_sessions%ROWTYPE;
@@ -413,7 +413,7 @@ BEGIN
   IF NOT public.is_admin() THEN RAISE EXCEPTION 'Administrator access required'; END IF;
   IF p_result NOT IN ('sold','unsold') THEN RAISE EXCEPTION 'Invalid result'; END IF;
 
-  SELECT * INTO s FROM public.auction_sessions WHERE tournament_id=p_tournament FOR UPDATE;
+  SELECT * INTO s FROM public.auction_sessions WHERE tournament_id=p_tournament_id FOR UPDATE;
   IF s.id IS NULL OR s.status<>'live' OR s.current_player_id IS NULL THEN
     RAISE EXCEPTION 'No active auction player';
   END IF;
@@ -421,14 +421,14 @@ BEGIN
   SELECT ap.* INTO aprow
   FROM public.auction_players ap
   JOIN public.player_registrations pr ON pr.id=ap.player_registration_id
-  WHERE ap.tournament_id=p_tournament AND pr.player_id=s.current_player_id
+  WHERE ap.tournament_id=p_tournament_id AND pr.player_id=s.current_player_id
   LIMIT 1;
 
   IF aprow.id IS NULL THEN RAISE EXCEPTION 'Current auction player record not found'; END IF;
 
   SELECT * INTO ae
   FROM public.auction_events
-  WHERE tournament_id=p_tournament AND auction_player_id=aprow.id AND status='live'
+  WHERE tournament_id=p_tournament_id AND auction_player_id=aprow.id AND status='live'
   ORDER BY created_at DESC LIMIT 1 FOR UPDATE;
 
   IF ae.id IS NULL THEN RAISE EXCEPTION 'Current auction event not found'; END IF;
@@ -439,10 +439,10 @@ BEGIN
     IF s.leading_team_id IS NULL THEN RAISE EXCEPTION 'A sold player must have a winning team'; END IF;
     UPDATE public.auction_team_wallets
     SET remaining_purse=remaining_purse-price
-    WHERE tournament_id=p_tournament AND team_id=s.leading_team_id;
+    WHERE tournament_id=p_tournament_id AND team_id=s.leading_team_id;
 
     INSERT INTO public.auction_squad(tournament_id,team_id,player_id,purchase_price)
-    VALUES(p_tournament,s.leading_team_id,s.current_player_id,price)
+    VALUES(p_tournament_id,s.leading_team_id,s.current_player_id,price)
     ON CONFLICT (tournament_id,player_id) DO UPDATE
       SET team_id=EXCLUDED.team_id,purchase_price=EXCLUDED.purchase_price;
   END IF;
@@ -481,11 +481,11 @@ BEGIN
     SELECT ap.id INTO next_ap_id
     FROM public.auction_players ap
     JOIN public.player_registrations pr ON pr.id=ap.player_registration_id
-    WHERE ap.tournament_id=p_tournament AND pr.player_id=next_player
+    WHERE ap.tournament_id=p_tournament_id AND pr.player_id=next_player
     LIMIT 1;
 
     INSERT INTO public.auction_events(tournament_id,auction_player_id,status,current_bid,current_team_id,started_at)
-    VALUES(p_tournament,next_ap_id,'live',public.auction_minimum_bid(next_player),NULL,now());
+    VALUES(p_tournament_id,next_ap_id,'live',public.auction_minimum_bid(next_player),NULL,now());
 
     UPDATE public.auction_players SET auction_status='live'
     WHERE id=next_ap_id;
@@ -508,11 +508,11 @@ BEGIN
       SELECT ap.id INTO next_ap_id
       FROM public.auction_players ap
       JOIN public.player_registrations pr ON pr.id=ap.player_registration_id
-      WHERE ap.tournament_id=p_tournament AND pr.player_id=next_player
+      WHERE ap.tournament_id=p_tournament_id AND pr.player_id=next_player
       LIMIT 1;
 
       INSERT INTO public.auction_events(tournament_id,auction_player_id,status,current_bid,current_team_id,started_at)
-      VALUES(p_tournament,next_ap_id,'live',public.auction_minimum_bid(next_player),NULL,now());
+      VALUES(p_tournament_id,next_ap_id,'live',public.auction_minimum_bid(next_player),NULL,now());
 
       UPDATE public.auction_players SET auction_status='live'
       WHERE id=next_ap_id;
@@ -528,7 +528,7 @@ BEGIN
   UPDATE public.auction_sessions
   SET status='completed',current_player_id=NULL,current_player_state='sold',updated_at=now()
   WHERE id=s.id;
-  UPDATE public.auction_settings SET auction_status='completed' WHERE tournament_id=p_tournament;
+  UPDATE public.auction_settings SET auction_status='completed' WHERE tournament_id=p_tournament_id;
   RETURN jsonb_build_object('done',true);
 END;
 $$;
@@ -539,7 +539,7 @@ GRANT EXECUTE ON FUNCTION public.finish_current_auction_player(UUID,TEXT) TO aut
 
 
 -- Securely bind a logged-in captain to the team selected by the admin.
-CREATE OR REPLACE FUNCTION public.claim_captain_access(p_tournament UUID)
+CREATE OR REPLACE FUNCTION public.claim_captain_access(p_tournament_id UUID)
 RETURNS JSONB LANGUAGE plpgsql SECURITY DEFINER SET search_path=public AS $$
 DECLARE
   uid UUID := auth.uid();
@@ -552,7 +552,7 @@ BEGIN
 
   SELECT * INTO inv
   FROM public.captain_invites
-  WHERE tournament_id=p_tournament AND active=TRUE AND lower(email)=em
+  WHERE tournament_id=p_tournament_id AND active=TRUE AND lower(email)=em
   ORDER BY updated_at DESC
   LIMIT 1;
 
@@ -564,7 +564,7 @@ BEGIN
   FROM public.players WHERE id=inv.player_id;
 
   INSERT INTO public.captain_profiles(user_id,tournament_id,email,display_name,team_id,updated_at)
-  VALUES(uid,p_tournament,em,pname,inv.team_id,now())
+  VALUES(uid,p_tournament_id,em,pname,inv.team_id,now())
   ON CONFLICT(user_id) DO UPDATE SET
     tournament_id=EXCLUDED.tournament_id,
     email=EXCLUDED.email,

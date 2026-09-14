@@ -27,3 +27,7 @@ Upload/replace the files in your GitHub Pages repository with this package.
 Captain accounts are created by the admin during Pre-Auction Setup. The website calls the Supabase Edge Function `create-captain-account`; the Supabase service-role key must be configured as an Edge Function secret and must never be placed in browser code.
 
 Deploy the function from the `supabase/functions/create-captain-account` folder, or create the function in the Supabase Dashboard Edge Functions editor. Configure `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as server-side secrets.
+
+
+## Important
+The live-auction RPC calls use the database parameter name `p_tournament_id`.
