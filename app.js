@@ -41,14 +41,7 @@ async function setNav(){
  :`<a href="index.html">Home</a><a href="admin.html">Admin Login</a>`;
 }
 async function getTournament(slug){
- slug=String(slug||"").trim();
- if(!slug){
-   try{slug=localStorage.getItem("ct_current_tournament_slug")||""}catch(e){}
- }
- if(!slug)throw new Error("Tournament not found. Please open the tournament from the Admin Dashboard.");
  const {data,error}=await sb.from("tournaments").select("*").eq("slug",slug).maybeSingle();
- if(error)throw error;
- if(!data)throw new Error("Tournament not found.");
- try{localStorage.setItem("ct_current_tournament_slug",data.slug)}catch(e){}
+ if(error)throw error;if(!data)throw new Error("Tournament not found.");
  return data;
 }
