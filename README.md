@@ -44,3 +44,7 @@ The live-auction RPC calls use the database parameter name `p_tournament_id`.
 Captain Login now performs its tournament lookup directly and accepts either tournament name or slug. Shared app.js references are cache-busted with v8.
 
 V9: Captain access RPC now uses database parameter p_tournament (matching the deployed function).
+
+
+## V12 database update
+Run `012_v12_sync_and_captain_refresh.sql` once in Supabase SQL Editor. It synchronizes the canonical current auction player and makes captain refresh reliable.
