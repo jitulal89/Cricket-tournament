@@ -42,3 +42,5 @@ The live-auction RPC calls use the database parameter name `p_tournament_id`.
 
 ## V8
 Captain Login now performs its tournament lookup directly and accepts either tournament name or slug. Shared app.js references are cache-busted with v8.
+
+V9: Captain access RPC now uses database parameter p_tournament (matching the deployed function).
