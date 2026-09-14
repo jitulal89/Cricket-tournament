@@ -3,6 +3,6 @@
 <section class="hero"><div class="pill">TOURNAMENT PLATFORM</div><h1>Create. Register. Auction. Play.</h1><p>Independent cricket tournament management with player registration, captain selection, auction categories and live auction preparation.</p><a class="btn" href="admin.html">Admin Login</a></section>
 <div id="tournaments" class="grid"></div>
 </main><footer>Cricket Tournament Platform</footer>
-<script src="app.js?v=9"></script><script>
+<script src="app.js?v=10"></script><script>
 async function load(){await setNav();const box=document.getElementById("tournaments");const {data,error}=await sb.from("tournaments").select("name,slug,description,logo_url,status").neq("status","draft").order("created_at",{ascending:false});if(error){box.innerHTML=msg(error.message,"err");return}box.innerHTML=(data||[]).map(t=>`<div class="card"><div class="row">${t.logo_url?`<img class="logo" src="${esc(t.logo_url)}">`:"<div class='logo' style='display:grid;place-items:center;font-size:30px'>🏏</div>"}<div><h3>${esc(t.name)}</h3><span class="pill">${esc(t.status)}</span></div></div><p class="muted">${esc(t.description||"Tournament details")}</p><a class="btn" href="tournament.html?slug=${encodeURIComponent(t.slug)}">View Tournament</a></div>`).join("")||`<div class="card empty">No public tournaments yet.</div>`}load();
 </script></body></html>

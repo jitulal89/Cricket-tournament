@@ -3,7 +3,7 @@
 <body><header class="top"><div class="brand">🏏 Captain Auction Login</div><nav id="nav" class="nav"></nav></header>
 <main id="app"><div class="card" style="max-width:520px;margin:auto"><h1 style="font-size:32px">Captain Login</h1><p class="muted">Use the email and password provided by the tournament admin.</p><div id="msg"></div><label>Tournament Name or Slug</label><input id="slug" placeholder="Test_Tournament or tournament-slug"><label>Captain Email</label><input id="email" type="email" autocomplete="username" placeholder="captain@example.com"><label>Password</label><input id="password" type="password" autocomplete="current-password" placeholder="Your password"><button class="btn big section" onclick="login()">🔐 Login</button></div></main>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=9"></script>
+<script src="app.js?v=10"></script>
 <script>
 async function findTournament(value){
   const search=String(value||'').trim();
