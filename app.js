@@ -40,27 +40,8 @@ async function setNav(){
  ?`<a href="index.html">Home</a><a href="admin-dashboard.html">Admin</a><button onclick="logout()">Logout</button>`
  :`<a href="index.html">Home</a><a href="admin.html">Admin Login</a>`;
 }
-async function getTournament(value){
- const search=String(value||"").trim();
- if(!search)throw new Error("Tournament name or slug is required.");
-
- // First try the tournament slug.
- let {data,error}=await sb
-  .from("tournaments")
-  .select("*")
-  .eq("slug",search)
-  .maybeSingle();
- if(error)throw error;
- if(data)return data;
-
- // Also accept the tournament name (case-insensitive), which is easier
- // for captains to enter on a phone.
- ({data,error}=await sb
-  .from("tournaments")
-  .select("*")
-  .ilike("name",search)
-  .maybeSingle());
- if(error)throw error;
- if(!data)throw new Error("Tournament not found.");
+async function getTournament(slug){
+ const {data,error}=await sb.from("tournaments").select("*").eq("slug",slug).maybeSingle();
+ if(error)throw error;if(!data)throw new Error("Tournament not found.");
  return data;
 }

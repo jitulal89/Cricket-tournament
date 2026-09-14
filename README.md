@@ -31,20 +31,3 @@ Deploy the function from the `supabase/functions/create-captain-account` folder,
 
 ## Important
 The live-auction RPC calls use the database parameter name `p_tournament_id`.
-
-
-## V7 fixes
-- Captain Login accepts either the tournament slug or the tournament name.
-- Captain Login can prefill the tournament from `?slug=` in the URL.
-- HTML pages use `app.js?v=7` to reduce stale browser/GitHub Pages cache issues.
-- Start Auction RPC uses `p_tournament_id`.
-
-
-## V8
-Captain Login now performs its tournament lookup directly and accepts either tournament name or slug. Shared app.js references are cache-busted with v8.
-
-V9: Captain access RPC now uses database parameter p_tournament (matching the deployed function).
-
-
-## V12 database update
-Run `012_v12_sync_and_captain_refresh.sql` once in Supabase SQL Editor. It synchronizes the canonical current auction player and makes captain refresh reliable.

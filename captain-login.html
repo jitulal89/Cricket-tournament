@@ -1,52 +1,7 @@
 <!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Captain Login</title><link rel="stylesheet" href="styles.css"></head>
 <body><header class="top"><div class="brand">🏏 Captain Auction Login</div><nav id="nav" class="nav"></nav></header>
-<main id="app"><div class="card" style="max-width:520px;margin:auto"><h1 style="font-size:32px">Captain Login</h1><p class="muted">Use the email and password provided by the tournament admin.</p><div id="msg"></div><label>Tournament Name or Slug</label><input id="slug" placeholder="Test_Tournament or tournament-slug"><label>Captain Email</label><input id="email" type="email" autocomplete="username" placeholder="captain@example.com"><label>Password</label><input id="password" type="password" autocomplete="current-password" placeholder="Your password"><button class="btn big section" onclick="login()">🔐 Login</button></div></main>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="app.js?v=12"></script>
-<script>
-async function findTournament(value){
-  const search=String(value||'').trim();
-  if(!search) throw new Error('Tournament name or slug is required.');
-
-  // Direct lookup by slug.
-  let {data,error}=await sb.from('tournaments').select('*').eq('slug',search).maybeSingle();
-  if(error) throw new Error('Could not look up tournament: '+error.message);
-  if(data) return data;
-
-  // Direct case-insensitive lookup by name.
-  ({data,error}=await sb.from('tournaments').select('*').ilike('name',search).maybeSingle());
-  if(error) throw new Error('Could not look up tournament: '+error.message);
-  if(data) return data;
-
-  throw new Error('Tournament not found. Check the tournament name or slug.');
-}
-
-async function login(){
-  const m=document.getElementById('msg');
-  m.innerHTML='';
-  const tournamentValue=document.getElementById('slug').value.trim();
-  const email=document.getElementById('email').value.trim().toLowerCase();
-  const password=document.getElementById('password').value;
-  if(!tournamentValue||!email||!password){
-    m.innerHTML=msg('Tournament name/slug, email and password are required.','err');
-    return;
-  }
-  try{
-    const t=await findTournament(tournamentValue);
-    const {data,error}=await sb.auth.signInWithPassword({email,password});
-    if(error) throw new Error('Login failed: '+error.message);
-    const {data:p,error:pe}=await sb.rpc('claim_captain_access',{p_tournament:t.id});
-    if(pe) throw new Error('Captain access failed: '+pe.message);
-    if(!p?.team_id) throw new Error('Captain account is not assigned to a team yet. Ask the tournament admin to create/update your captain account.');
-    location.href='captain-auction.html?slug='+encodeURIComponent(t.slug);
-  }catch(x){
-    await sb.auth.signOut();
-    m.innerHTML=msg(x?.message||String(x),'err');
-  }
-}
-
-const tournamentInput=document.getElementById('slug');
-const urlSlug=new URLSearchParams(location.search).get('slug')||'';
-if(urlSlug) tournamentInput.value=urlSlug;
+<main id="app"><div class="card" style="max-width:520px;margin:auto"><h1 style="font-size:32px">Captain Login</h1><p class="muted">Use the email and password provided by the tournament admin.</p><div id="msg"></div><label>Tournament</label><input id="slug" placeholder="tournament-slug"><label>Captain Email</label><input id="email" type="email" autocomplete="username" placeholder="captain@example.com"><label>Password</label><input id="password" type="password" autocomplete="current-password" placeholder="Your password"><button class="btn big section" onclick="login()">🔐 Login</button></div></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="app.js"></script><script>
+async function login(){const m=document.getElementById('msg');m.innerHTML='';const s=document.getElementById('slug').value.trim(),e=document.getElementById('email').value.trim().toLowerCase(),pw=document.getElementById('password').value;if(!s||!e||!pw)return m.innerHTML=msg('Tournament, email and password are required.','err');try{const t=await getTournament(s);const {data,error}=await sb.auth.signInWithPassword({email:e,password:pw});if(error)throw error;const {data:p,error:pe}=await sb.rpc('claim_captain_access',{p_tournament_id:t.id});if(pe)throw pe;if(!p?.team_id)throw new Error('Captain account is not assigned to a team yet.');location.href='captain-auction.html?slug='+encodeURIComponent(t.slug)}catch(x){await sb.auth.signOut();m.innerHTML=msg(x.message,'err')}}
 </script></body></html>
