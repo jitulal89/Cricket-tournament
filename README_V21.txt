@@ -1,0 +1,1 @@
+V21 is based directly on V16. Preserves V14-V16 live auction/player profile/current_auction_player_id improvements, removes same-device testing UI, restores V13-style Captain Login, and hardens tournament lookup. No new SQL required.

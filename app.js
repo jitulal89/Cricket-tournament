@@ -1,7 +1,7 @@
 
 const SUPABASE_URL="https://jauulapjawbusltlqyau.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY="sb_publishable_QkA-HpPACdhHRlA7DKYtFA_GvDjT7Qi";
-const sb=supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{storageKey:"ct-auth-default",persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
 
 function esc(v=""){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
 function qs(k){return new URLSearchParams(location.search).get(k)||""}
@@ -40,8 +40,21 @@ async function setNav(){
  ?`<a href="index.html">Home</a><a href="admin-dashboard.html">Admin</a><button onclick="logout()">Logout</button>`
  :`<a href="index.html">Home</a><a href="admin.html">Admin Login</a>`;
 }
-async function getTournament(slug){
- const {data,error}=await sb.from("tournaments").select("*").eq("slug",slug).maybeSingle();
- if(error)throw error;if(!data)throw new Error("Tournament not found.");
- return data;
+async function getTournament(value){
+ const search=String(value||"").trim();
+ if(!search)throw new Error("Tournament name or slug is required.");
+ const slug=slugify(search);
+ let {data,error}=await sb.from("tournaments").select("*").eq("slug",search).maybeSingle();
+ if(error)throw error;
+ if(data)return data;
+ if(slug!==search){({data,error}=await sb.from("tournaments").select("*").eq("slug",slug).maybeSingle());if(error)throw error;if(data)return data;}
+ ({data,error}=await sb.from("tournaments").select("*").eq("name",search).maybeSingle());
+ if(error)throw error;
+ if(data)return data;
+ const {data:list,error:le}=await sb.from("tournaments").select("*").neq("status","draft").limit(100);
+ if(le)throw le;
+ const key=search.toLowerCase();
+ const match=(list||[]).find(t=>String(t.slug||"").toLowerCase()===key||String(t.name||"").toLowerCase()===key||slugify(t.name||"")===slug);
+ if(!match)throw new Error("Tournament not found. Please enter the tournament name or slug exactly as shown on the tournament page.");
+ return match;
 }
