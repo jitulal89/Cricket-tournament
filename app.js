@@ -41,7 +41,23 @@ async function setNav(){
  :`<a href="index.html">Home</a><a href="admin.html">Admin Login</a>`;
 }
 async function getTournament(slug){
- const {data,error}=await sb.from("tournaments").select("*").eq("slug",slug).maybeSingle();
- if(error)throw error;if(!data)throw new Error("Tournament not found.");
+ const raw=String(slug||"").trim();
+ if(!raw)throw new Error("Tournament slug is required.");
+ const normalized=slugify(raw);
+ // V13.1: resolve by slug safely without maybeSingle(), then fall back to name.
+ let q=await sb.from("tournaments").select("*").eq("slug",raw).limit(1);
+ if(q.error)throw q.error;
+ let data=q.data?.[0]||null;
+ if(!data && normalized && normalized!==raw){
+   q=await sb.from("tournaments").select("*").eq("slug",normalized).limit(1);
+   if(q.error)throw q.error;
+   data=q.data?.[0]||null;
+ }
+ if(!data){
+   q=await sb.from("tournaments").select("*").ilike("name",raw).limit(1);
+   if(q.error)throw q.error;
+   data=q.data?.[0]||null;
+ }
+ if(!data)throw new Error(`Tournament not found for "${raw}". Please use the tournament slug shown on the public tournament page.`);
  return data;
 }
