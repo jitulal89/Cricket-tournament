@@ -1,0 +1,8 @@
+V13.8 Captain bidding fix.
+The screenshot showed Supabase looking for:
+place_live_auction_bid(p_amount, p_source, p_team, p_tournament_id)
+while the actual database function signature is:
+place_live_auction_bid(p_tournament_id uuid, p_team_id uuid, p_amount integer, p_source text)
+The Captain page now sends the exact parameter names expected by the DB function:
+{p_tournament_id, p_team_id, p_amount, p_source}.
+No database SQL change is required.
