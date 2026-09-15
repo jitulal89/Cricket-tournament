@@ -1,0 +1,6 @@
+V13.7 fixes the Captain Auction minimum bid and category display.
+The Captain page now calls get_current_captain_auction_info(tournament_id), which reads
+the current auction session -> auction_players -> auction_categories inside SECURITY DEFINER.
+This avoids Captain RLS causing CAT=null / Minimum ₹0.
+For the current test, Dummy Player 05 in Category A should display Category A and Minimum ₹80.
+Run 009_v13_7_captain_minimum_bid.sql once before testing.

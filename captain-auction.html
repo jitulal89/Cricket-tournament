@@ -6,11 +6,13 @@ async function load(){const {data:{user}}=await sb.auth.getUser();if(!user){loca
 let MINIMUM_BID=0;
 async function refresh(){const [s,w,a]=await Promise.all([sb.from('auction_sessions').select('*').eq('tournament_id',T.id).maybeSingle(),sb.from('auction_team_wallets').select('*').eq('tournament_id',T.id).eq('team_id',TEAM.id).maybeSingle(),sb.from('auction_settings').select('bid_increment,default_minimum_bid').eq('tournament_id',T.id).maybeSingle()]);S=s.data;WAL=w.data;A=a.data;PLAYER=null;CAT=null;MINIMUM_BID=0;
  if(S?.current_auction_player_id){
-   const {data:mb}=await sb.rpc('get_captain_auction_minimum_bid',{
-     p_tournament_id:T.id,
-     p_auction_player_id:S.current_auction_player_id
+   const {data:mb,error:mbe}=await sb.rpc('get_current_captain_auction_info',{
+     p_tournament_id:T.id
    });
-   MINIMUM_BID=Number(mb||0);
+   if(!mbe && mb){
+     MINIMUM_BID=Number(mb.minimum_bid||0);
+     CAT={name:mb.category_name||'Category',minimum_bid:MINIMUM_BID};
+   }
  }
  const auctionPlayerId=S?.current_auction_player_id||null;
  if(auctionPlayerId){
@@ -20,7 +22,7 @@ async function refresh(){const [s,w,a]=await Promise.all([sb.from('auction_sessi
        ap.category_id?sb.from('auction_categories').select('*').eq('id',ap.category_id).maybeSingle():Promise.resolve({data:null}),
        sb.from('player_registrations').select('player_id').eq('id',ap.player_registration_id).maybeSingle()
      ]);
-     CAT=cat;
+     if(cat) CAT=cat;
      if(pr?.player_id){
        const {data:pl}=await sb.from('players').select('full_name,display_name,playing_role,profile_photo_url,batting_style,bowling_style,cricheroes_matches,cricheroes_runs,cricheroes_wickets,cricheroes_strike_rate,cricheroes_economy,cricheroes_profile_url').eq('id',pr.player_id).maybeSingle();
        PLAYER=pl;
