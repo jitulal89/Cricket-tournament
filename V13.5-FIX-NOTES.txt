@@ -1,0 +1,1 @@
+Captain minimum-bid fix: directly queries auction_players.category_id, then auction_categories.minimum_bid. This avoids ambiguous nested PostgREST relation parsing. No SQL required.
