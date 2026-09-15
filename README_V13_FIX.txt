@@ -18,3 +18,6 @@ This fix handles:
 - Current auction event completion
 - Automatic next player
 - Auction completion when no players remain
+
+
+V13.3: Run 007_v13_3_player_profiles.sql before testing registration/photo/profile stats.

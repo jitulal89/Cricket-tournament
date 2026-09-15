@@ -11,7 +11,7 @@ async function loadBase(){
    sb.from('auction_settings').select('*').eq('tournament_id',T.id).maybeSingle(),
    sb.from('auction_categories').select('id,name,minimum_bid,auction_order').eq('tournament_id',T.id).order('auction_order',{ascending:true,nullsFirst:false}).order('name'),
    sb.from('teams').select('id,name,captain_id').eq('tournament_id',T.id).order('name'),
-   sb.from('player_registrations').select('id,player_id,auction_category_id,is_captain,status,players(id,full_name,display_name,playing_role)').eq('tournament_id',T.id).eq('status','approved')
+   sb.from('player_registrations').select('id,player_id,auction_category_id,is_captain,status,players(id,full_name,display_name,playing_role,profile_photo_url,batting_style,bowling_style,cricheroes_matches,cricheroes_runs,cricheroes_wickets,cricheroes_strike_rate,cricheroes_economy,cricheroes_profile_url)').eq('tournament_id',T.id).eq('status','approved')
   ]);
   for(const x of [a,c,tm,r])if(x.error)throw x.error;
   A=a.data;CATS=c.data||[];TEAMS=tm.data||[]; const caps=new Set(TEAMS.map(x=>x.captain_id).filter(Boolean)); PLAYERS=(r.data||[]).filter(x=>!caps.has(x.player_id));
@@ -36,7 +36,23 @@ function render(){
   <div class="pill">CATEGORY ${esc(cat?.name||'—')}</div>
   <div class="mini" style="color:#cbd5e1;margin-top:8px">CURRENT PLAYER</div>
   <h2 style="font-size:clamp(30px,7vw,56px);margin:4px 0">${esc(cp?.display_name||cp?.full_name||'No player')}</h2>
-  <div>${esc(cp?.playing_role||'')} · Minimum bid ${money(cat?.minimum_bid)}</div>
+  <div class="player-profile" style="margin-top:14px">
+   <img src="${esc(cp?.profile_photo_url||'')}" class="player-photo" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'" alt="">
+   <div class="player-photo placeholder" style="display:${cp?.profile_photo_url?'none':'grid'}">🏏</div>
+   <div class="player-info">
+    <div class="role-badge">${esc((cp?.playing_role||'').replace('_',' ')||'Player')}</div>
+    <div class="muted-light">${esc(cp?.batting_style||'')} ${cp?.bowling_style?' · '+esc(cp.bowling_style):''}</div>
+   </div>
+  </div>
+  <div class="stats-grid">
+   <div><b>${cp?.cricheroes_matches??'—'}</b><span>Matches</span></div>
+   <div><b>${cp?.cricheroes_runs??'—'}</b><span>Runs</span></div>
+   <div><b>${cp?.cricheroes_wickets??'—'}</b><span>Wickets</span></div>
+   <div><b>${cp?.cricheroes_strike_rate??'—'}</b><span>SR</span></div>
+   <div><b>${cp?.cricheroes_economy??'—'}</b><span>Economy</span></div>
+  </div>
+  ${cp?.cricheroes_profile_url?`<a target="_blank" rel="noopener" href="${esc(cp.cricheroes_profile_url)}" class="profile-link">View CricHeroes Profile ↗</a>`:''}
+  <div style="margin-top:12px">Minimum bid ${money(cat?.minimum_bid)}</div>
   <div class="current-bid">${money(S.current_bid)}</div>
   <div>${S.leading_team_id?`Leading: <strong>${esc(TEAMS.find(t=>t.id===S.leading_team_id)?.name||'Team')}</strong>`:'No bid yet'}</div>
  </div>
