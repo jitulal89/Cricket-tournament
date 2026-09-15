@@ -1,0 +1,10 @@
+V13.4 Captain Minimum Bid Fix
+
+Frontend-only change:
+- Captain Auction now displays auction_categories.minimum_bid as the authoritative minimum.
+- It no longer falls back to auction_settings.default_minimum_bid when a category is present.
+- No database/schema changes are required for this frontend fix.
+
+Current verified example:
+Dummy Player 05 -> Category A -> Minimum Bid 80.
+Captain page should display ₹80.
