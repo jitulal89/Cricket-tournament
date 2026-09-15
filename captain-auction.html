@@ -3,7 +3,15 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="app.js"></script><script>
 let T,ME,S,TEAM,PLAYER,CAT,WAL,A,channel;const appx=document.getElementById('app');
 async function load(){const {data:{user}}=await sb.auth.getUser();if(!user){location.href='captain-login.html?slug='+encodeURIComponent(qs('slug'));return}try{T=await getTournament(qs('slug'));const {data:p,error}=await sb.rpc('claim_captain_access',{p_tournament_id:T.id});if(error)throw error;ME=p;if(!ME?.team_id)throw new Error('Your captain login is not assigned to a team yet.');const {data:tm,error:te}=await sb.from('teams').select('*').eq('id',ME.team_id).single();if(te)throw te;TEAM=tm;await refresh();subscribe()}catch(e){appx.innerHTML=msg(e.message,'err')}}
-async function refresh(){const [s,w,a]=await Promise.all([sb.from('auction_sessions').select('*').eq('tournament_id',T.id).maybeSingle(),sb.from('auction_team_wallets').select('*').eq('tournament_id',T.id).eq('team_id',TEAM.id).maybeSingle(),sb.from('auction_settings').select('bid_increment,default_minimum_bid').eq('tournament_id',T.id).maybeSingle()]);S=s.data;WAL=w.data;A=a.data;PLAYER=null;CAT=null;
+let MINIMUM_BID=0;
+async function refresh(){const [s,w,a]=await Promise.all([sb.from('auction_sessions').select('*').eq('tournament_id',T.id).maybeSingle(),sb.from('auction_team_wallets').select('*').eq('tournament_id',T.id).eq('team_id',TEAM.id).maybeSingle(),sb.from('auction_settings').select('bid_increment,default_minimum_bid').eq('tournament_id',T.id).maybeSingle()]);S=s.data;WAL=w.data;A=a.data;PLAYER=null;CAT=null;MINIMUM_BID=0;
+ if(S?.current_auction_player_id){
+   const {data:mb}=await sb.rpc('get_captain_auction_minimum_bid',{
+     p_tournament_id:T.id,
+     p_auction_player_id:S.current_auction_player_id
+   });
+   MINIMUM_BID=Number(mb||0);
+ }
  const auctionPlayerId=S?.current_auction_player_id||null;
  if(auctionPlayerId){
    const {data:ap,error:ape}=await sb.from('auction_players').select('id,category_id,player_registration_id').eq('id',auctionPlayerId).eq('tournament_id',T.id).maybeSingle();
@@ -24,7 +32,7 @@ async function refresh(){const [s,w,a]=await Promise.all([sb.from('auction_sessi
  }
  render()}
 async function getCat(id){const {data}=await sb.from('auction_categories').select('*').eq('id',id).single();return data}
-function render(){if(!S){appx.innerHTML='<div class="card">Auction has not started yet. Please wait for the admin.</div>';return}if(S.status==='completed'){appx.innerHTML='<div class="card"><h1>🏆 Auction Completed</h1><p>Thank you, '+esc(ME.display_name||'Captain')+'.</p></div>';return}const min=CAT?.minimum_bid!=null?Number(CAT.minimum_bid):Number(A?.default_minimum_bid||0),inc=Number(A?.bid_increment||0)||10;const next=S.leading_team_id?Number(S.current_bid)+inc:Number(S.current_bid||min);appx.innerHTML=`<div class="row between"><div><h1 style="font-size:32px">${esc(T.name)}</h1><p class="muted">Captain: ${esc(ME.display_name||'')} · ${esc(TEAM.name)}</p></div><button class="btn secondary" onclick="logout()">Logout</button></div><div class="live section">
+function render(){if(!S){appx.innerHTML='<div class="card">Auction has not started yet. Please wait for the admin.</div>';return}if(S.status==='completed'){appx.innerHTML='<div class="card"><h1>🏆 Auction Completed</h1><p>Thank you, '+esc(ME.display_name||'Captain')+'.</p></div>';return}const min=MINIMUM_BID,inc=Number(A?.bid_increment||0)||10;const next=S.leading_team_id?Number(S.current_bid)+inc:Number(S.current_bid||min);appx.innerHTML=`<div class="row between"><div><h1 style="font-size:32px">${esc(T.name)}</h1><p class="muted">Captain: ${esc(ME.display_name||'')} · ${esc(TEAM.name)}</p></div><button class="btn secondary" onclick="logout()">Logout</button></div><div class="live section">
  <div class="pill">${esc(CAT?.name||'Category')}</div>
  <div class="player-profile" style="margin-top:14px">
   <img src="${esc(PLAYER?.profile_photo_url||'')} " class="player-photo" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'" alt="">

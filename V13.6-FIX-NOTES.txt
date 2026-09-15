@@ -1,0 +1,4 @@
+V13.6 Captain minimum bid fix.
+Captain Auction now directly calls:
+get_captain_auction_minimum_bid(tournament_id, current_auction_player_id)
+and displays that returned value. No additional SQL is included because the function was already created and verified to return 80 for Dummy Player 05.
