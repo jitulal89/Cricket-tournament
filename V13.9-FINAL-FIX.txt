@@ -1,0 +1,5 @@
+Final live-bid RPC fix.
+Both Captain and Admin pages now call the exact existing function signature:
+place_live_auction_bid({p_tournament_id, p_team_id, p_amount, p_source})
+No p_team parameter is used.
+No SQL changes are required if the V13.9 SQL function has already been run.
