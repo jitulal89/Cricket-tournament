@@ -1,9 +1,7 @@
 
 const SUPABASE_URL="https://jauulapjawbusltlqyau.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY="sb_publishable_QkA-HpPACdhHRlA7DKYtFA_GvDjT7Qi";
-const _urlParams=new URLSearchParams(location.search);
-const _sessionKey=(_urlParams.get("session")||"default").replace(/[^a-zA-Z0-9_-]/g,"").slice(0,40)||"default";
-const sb=supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY,{auth:{storageKey:`ct-auth-${_sessionKey}`,persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 
 function esc(v=""){return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]))}
 function qs(k){return new URLSearchParams(location.search).get(k)||""}
@@ -42,16 +40,8 @@ async function setNav(){
  ?`<a href="index.html">Home</a><a href="admin-dashboard.html">Admin</a><button onclick="logout()">Logout</button>`
  :`<a href="index.html">Home</a><a href="admin.html">Admin Login</a>`;
 }
-async function getTournament(value){
- const search=String(value||"").trim();
- if(!search)throw new Error("Tournament name or slug is required.");
- let {data,error}=await sb.from("tournaments").select("*").eq("slug",search).order("created_at",{ascending:false}).limit(1);
- data=data?.[0]||null;
- if(error)throw error;
- if(data)return data;
- ({data,error}=await sb.from("tournaments").select("*").eq("name",search).order("created_at",{ascending:false}).limit(1));
- data=data?.[0]||null;
- if(error)throw error;
- if(!data)throw new Error("Tournament not found.");
+async function getTournament(slug){
+ const {data,error}=await sb.from("tournaments").select("*").eq("slug",slug).maybeSingle();
+ if(error)throw error;if(!data)throw new Error("Tournament not found.");
  return data;
 }
