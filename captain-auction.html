@@ -57,7 +57,7 @@ function render(){if(!S){appx.innerHTML='<div class="card">Auction has not start
  <div class="bid">${money(S.current_bid)}</div>
  <div>${S.leading_team_id?`Leading team: ${esc(S.leading_team_id===TEAM.id?TEAM.name:'Another team')}`:'No bid yet'}</div>
 </div><div class="teambox section ${S.leading_team_id===TEAM.id?'leading':''}"><div class="row between"><h2>${esc(TEAM.name)}</h2><span class="pill">Remaining Purse: ${money(WAL?.remaining_purse)}</span></div><label>Your Bid</label><input id="myBid" class="bid-input" type="number" min="${next}" value="${next}"><button class="btn big" onclick="bid()">🔨 PLACE BID</button><p class="muted">Your bid will be visible to the auction admin and all other captains immediately.</p></div>`}
-async function bid(){const val=Number(document.getElementById('myBid').value);if(!val)return;const {error}=await sb.rpc('place_live_auction_bid',{p_tournament_id:T.id,p_team_id:TEAM.id,p_amount:amount,p_source:'captain'}));if(error)return alert(error.message);await refresh()}
+async function bid(){const val=Number(document.getElementById('myBid').value);if(!val)return;const {error}=await sb.rpc('place_live_auction_bid',{p_tournament_id:T.id,p_team_id:TEAM.id,p_amount:val,p_source:'captain'});if(error)return alert(error.message);await refresh()}
 function subscribe(){if(channel)sb.removeChannel(channel);channel=sb.channel('captain-'+T.id).on('postgres_changes',{event:'*',schema:'public',table:'auction_sessions',filter:'tournament_id=eq.'+T.id},refresh).on('postgres_changes',{event:'*',schema:'public',table:'auction_team_wallets',filter:'tournament_id=eq.'+T.id},refresh).on('postgres_changes',{event:'*',schema:'public',table:'auction_bids'},refresh).subscribe()}
 load();
 </script></body></html>
