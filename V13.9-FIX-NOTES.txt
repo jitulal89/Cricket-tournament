@@ -1,0 +1,3 @@
+V13.9 fixes the live bidding backend.
+The existing function was checking auction_sessions.current_player_id, while the live session uses current_auction_player_id. V13.9 replaces place_live_auction_bid with a function that uses current_auction_player_id and the actual signature (p_tournament_id, p_team, p_amount, p_source).
+Run 010_v13_9_live_bid_fix.sql once, then deploy this ZIP.
