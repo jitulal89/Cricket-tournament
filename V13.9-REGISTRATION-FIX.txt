@@ -1,0 +1,12 @@
+V13.9 REGISTRATION WORKFLOW FIX
+
+- Fixed Admin Tournament > Save Settings so the Registration status selector is read by explicit element ID.
+- This resolves the browser window.status name collision that could prevent changing a new tournament from Draft to Open Registration.
+- Fixed explicit field lookups on Create Tournament and Player Registration pages to avoid browser named-element globals.
+- No database schema, existing records, Supabase project, or credentials changed.
+
+To open registration:
+1. Sign in as Admin.
+2. Open Admin Dashboard > Manage for the tournament.
+3. Set Registration status to Open and click Save Settings.
+4. Open the Public page; the Register as a Player button should now appear.

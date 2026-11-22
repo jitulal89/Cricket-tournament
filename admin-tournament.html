@@ -10,8 +10,8 @@ async function load(){if(!(await requireAdmin()))return;await setNav();const slu
 <a class="btn" href="admin-pre-auction.html?slug=${encodeURIComponent(t.slug)}">Open Pre-Auction Setup →</a>
 <a class="btn secondary" href="admin-teams.html?slug=${encodeURIComponent(t.slug)}">Manage Teams</a>
 </div>
-</div>`;status.value=t.status}catch(e){app.innerHTML=msg(e.message,"err")}}
-async function saveSettings(id,slug){const m=document.getElementById("sm");try{let u=null;if(logo.files[0])u=await uploadLogo(logo.files[0],id);const patch={status:status.value};if(u)patch.logo_url=u;const {error}=await sb.from("tournaments").update(patch).eq("id",id);if(error)throw error;m.innerHTML=msg("Tournament settings saved.");setTimeout(()=>location.reload(),400)}catch(e){m.innerHTML=msg(e.message,"err")}}
+</div>`;document.getElementById("status").value=t.status}catch(e){app.innerHTML=msg(e.message,"err")}}
+async function saveSettings(id,slug){const m=document.getElementById("sm");try{let u=null;const logoFile=document.getElementById("logo").files[0];if(logoFile)u=await uploadLogo(logoFile,id);const patch={status:document.getElementById("status").value};if(u)patch.logo_url=u;const {error}=await sb.from("tournaments").update(patch).eq("id",id);if(error)throw error;m.innerHTML=msg("Tournament settings saved.");setTimeout(()=>location.reload(),400)}catch(e){m.innerHTML=msg(e.message,"err")}}
 
 async function review(id,status,slug){const {error}=await sb.from("player_registrations").update({status,reviewed_at:new Date().toISOString()}).eq("id",id);if(error)alert(error.message);else location.href="admin-tournament.html?slug="+slug}load();
 </script></body></html>

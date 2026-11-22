@@ -1,79 +1,12 @@
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Create Tournament</title><link rel="stylesheet" href="styles.css"><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body><header class="top"><div class="brand">🏏 Create Tournament</div><nav id="nav" class="nav"></nav></header><main><div class="card" style="max-width:760px;margin:auto"><h2>Create Tournament</h2><p class="muted">Auction settings can be changed later from the tournament management pages.</p><div id="m"></div><label>Tournament name *</label><input id="name" placeholder="City Premier League 2027"><label>URL slug *</label><input id="slug" placeholder="city-premier-league-2027"><label>Description</label><textarea id="desc" rows="3"></textarea><label>Tournament logo</label><input id="logo" type="file" accept="image/*"><div id="preview" class="row"></div><label>Maximum teams</label><input id="maxTeams" type="number" min="2" value="6"><label>Number of teams planned</label><input id="numTeams" type="number" min="2" value="4"><label>Maximum players</label><input id="maxPlayers" type="number" min="1" value="100"><label>Registration status</label><select id="status"><option value="draft">Draft</option><option value="registration_open">Open Registration</option></select><hr class="divider"><h3>Initial Auction Settings</h3><label>Auction mode</label><select id="mode"><option value="category">Category based</option><option value="open">Open auction</option></select><label>Default minimum bid</label><input id="minBid" type="number" min="0" value="100"><label>Bid increment</label><input id="inc" type="number" min="1" value="10"><label>Starting team purse</label><input id="purse" type="number" min="0" value="1000"><div class="row"><a class="btn secondary" href="admin-dashboard.html">Cancel</a><button class="btn" onclick="create()">Create Tournament</button></div></div></main><script src="app.js"></script><script>
 setNav();
-const el = id => document.getElementById(id);
-el("logo").addEventListener("change", () => {
-  const f = el("logo").files[0];
-  el("preview").innerHTML = f ? `<img class="logo" src="${URL.createObjectURL(f)}"><span>${esc(f.name)}</span>` : "";
-});
+document.getElementById("logo").addEventListener("change",()=>{const f=document.getElementById("logo").files[0];document.getElementById("preview").innerHTML=f?`<img class="logo" src="${URL.createObjectURL(f)}"><span>${esc(f.name)}</span>`:""});
 async function create(){
-  const button = document.querySelector('button[onclick="create()"]');
-  const m = el("m");
-  if (button) { button.disabled = true; button.textContent = "Creating..."; }
-  try {
-    if (!(await requireAdmin())) return;
-    const tournamentName = el("name").value.trim();
-    const tournamentSlug = slugify(el("slug").value);
-    if (!tournamentName || !tournamentSlug) {
-      m.innerHTML = msg("Tournament name and slug are required.", "err");
-      return;
-    }
-    const maxTeamsValue = Number(el("maxTeams").value);
-    const numTeamsValue = Number(el("numTeams").value);
-    const maxPlayersValue = Number(el("maxPlayers").value);
-    const minBidValue = Number(el("minBid").value);
-    const incrementValue = Number(el("inc").value);
-    const purseValue = Number(el("purse").value);
-    if (maxTeamsValue < 2 || numTeamsValue < 2 || numTeamsValue > maxTeamsValue || maxPlayersValue < 1 || minBidValue < 0 || incrementValue < 1 || purseValue < 0) {
-      m.innerHTML = msg("Please check the team, player and auction settings. Planned teams cannot exceed maximum teams.", "err");
-      return;
-    }
-    const { data: authData, error: authError } = await sb.auth.getUser();
-    if (authError) throw authError;
-    if (!authData?.user) throw new Error("Your admin session has expired. Please sign in again.");
-
-    const { data: tournament, error: tournamentError } = await sb.from("tournaments").insert({
-      name: tournamentName,
-      slug: tournamentSlug,
-      description: el("desc").value.trim() || null,
-      max_teams: maxTeamsValue,
-      number_of_teams: numTeamsValue,
-      max_players: maxPlayersValue,
-      status: el("status").value,
-      created_by: authData.user.id
-    }).select().single();
-    if (tournamentError) throw new Error("Tournament creation failed: " + tournamentError.message);
-    if (!tournament?.id) throw new Error("Tournament was not returned by the database. Please check the tournaments table permissions.");
-
-    try {
-      const logoUrl = await uploadLogo(el("logo").files[0], tournament.id);
-      if (logoUrl) {
-        const { error } = await sb.from("tournaments").update({ logo_url: logoUrl }).eq("id", tournament.id);
-        if (error) throw error;
-      }
-    } catch (e) {
-      throw new Error("Tournament was created, but logo upload failed: " + e.message + ". You can add the logo later from tournament settings.");
-    }
-
-    const { error: auctionError } = await sb.from("auction_settings").insert({
-      tournament_id: tournament.id,
-      auction_enabled: true,
-      auction_mode: el("mode").value,
-      default_minimum_bid: minBidValue,
-      bid_increment: incrementValue,
-      starting_purse: purseValue,
-      auction_status: "setup"
-    });
-    if (auctionError) throw new Error("Tournament was created, but auction settings could not be saved: " + auctionError.message + ". Please do not create it again; check the tournament in the admin dashboard.");
-
-    const { error: registrationError } = await sb.from("registration_forms").insert({ tournament_id: tournament.id });
-    if (registrationError) throw new Error("Tournament and auction settings were created, but registration form setup failed: " + registrationError.message + ". Please do not create it again; check the tournament in the admin dashboard.");
-
-    m.innerHTML = msg("Tournament created successfully. Opening tournament management...");
-    location.href = "admin-tournament.html?slug=" + encodeURIComponent(tournamentSlug);
-  } catch (e) {
-    m.innerHTML = msg(e?.message || "An unexpected error occurred while creating the tournament.", "err");
-  } finally {
-    if (button) { button.disabled = false; button.textContent = "Create Tournament"; }
-  }
-}
-</script></body></html>
+ if(!(await requireAdmin()))return;
+ const m=document.getElementById("m");
+ const tournamentName=document.getElementById("name").value.trim();
+ const tournamentSlug=slugify(document.getElementById("slug").value);
+ if(!tournamentName||!tournamentSlug){m.innerHTML=msg("Tournament name and slug are required.","err");return}
+ const {data:{user}}=await sb.auth.getUser();
+ if(!user){m.innerHTML=msg("Please sign in as an administrator.","err");return}
+ const {data:t,error}=await sb.from("tournaments").insert({name:tournamentName,slug:tournamentSlug,description:document.getElementById("desc").value.trim()||null,max_teams:Number(document.getElementById("maxTeams").value)||null,number_of_teams:Number(document.getElementById("numTeams").value)||null,max_players:Number(document.getElementById("maxPlayers").value)||null,status:document.getElementById("status").value,created_by:user.id}).select().single();if(error){m.innerHTML=msg(error.message,"err");return}try{const u=await uploadLogo(document.getElementById("logo").files[0],t.id);if(u){const {error:e}=await sb.from("tournaments").update({logo_url:u}).eq("id",t.id);if(e)throw e}}catch(e){m.innerHTML=msg("Tournament created, but logo upload failed: "+e.message,"err");return}const {error:ae}=await sb.from("auction_settings").insert({tournament_id:t.id,auction_enabled:true,auction_mode:document.getElementById("mode").value,default_minimum_bid:Number(document.getElementById("minBid").value)||0,bid_increment:Number(document.getElementById("inc").value)||10,starting_purse:Number(document.getElementById("purse").value)||0,auction_status:"setup"});if(ae){m.innerHTML=msg("Tournament created, but auction settings failed: "+ae.message,"err");return}await sb.from("registration_forms").insert({tournament_id:t.id});location.href="admin-tournament.html?slug="+encodeURIComponent(tournamentSlug)}</script></body></html>
