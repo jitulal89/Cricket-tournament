@@ -8,6 +8,7 @@ async function load(){if(!(await requireAdmin()))return;await setNav();const slu
 </div>
 <div class="row">
 <a class="btn" href="admin-pre-auction.html?slug=${encodeURIComponent(t.slug)}">Open Pre-Auction Setup →</a>
+<a class="btn secondary" href="admin-player-profiles.html?slug=${encodeURIComponent(t.slug)}">Edit Player Profiles & Stats →</a>
 <a class="btn secondary" href="admin-teams.html?slug=${encodeURIComponent(t.slug)}">Manage Teams</a>
 </div>
 </div>`;document.getElementById("status").value=t.status}catch(e){app.innerHTML=msg(e.message,"err")}}

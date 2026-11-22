@@ -1,0 +1,95 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Manage Player Profiles</title><link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head>
+<body><header class="top"><div class="brand">🏏 Player Profiles & Stats</div><nav id="nav" class="nav"></nav></header>
+<main id="app"></main><script src="app.js"></script><script>
+let T=null,REGS=[],CURRENT=null;
+const $=id=>document.getElementById(id);
+const fields=['display_name','playing_role','batting_style','bowling_style','cricheroes_matches','cricheroes_runs','cricheroes_wickets','cricheroes_strike_rate','cricheroes_economy','cricheroes_profile_url'];
+async function load(){
+ if(!(await requireAdmin()))return; await setNav();
+ try{
+  T=await getTournament(qs('slug'));
+  const {data,error}=await sb.from('player_registrations')
+   .select('id,player_id,status,players(id,full_name,display_name,phone,playing_role,profile_photo_url,batting_style,bowling_style,cricheroes_matches,cricheroes_runs,cricheroes_wickets,cricheroes_strike_rate,cricheroes_economy,cricheroes_profile_url)')
+   .eq('tournament_id',T.id).eq('status','approved').order('registered_at',{ascending:true});
+  if(error)throw error;
+  REGS=(data||[]).filter(r=>r.players);
+  render();
+ }catch(e){$('app').innerHTML=msg(e.message,'err')}
+}
+function render(){
+ $('app').innerHTML=`<div class="row between"><div><h1 style="font-size:34px">Manage Player Profiles</h1><p class="muted">${esc(T.name)} · Update player details and auction statistics</p></div><a class="btn secondary" href="admin-tournament.html?slug=${encodeURIComponent(T.slug)}">← Tournament</a></div>
+ <div class="grid section" style="grid-template-columns:minmax(220px,1fr) 2fr;align-items:start">
+  <div class="card"><h2>Approved Players</h2><p class="muted">Select a player to edit the information shown to captains during the live auction.</p>
+   <input id="searchPlayer" placeholder="Search player..." oninput="filterPlayers()">
+   <div id="playerList" class="section"></div>
+  </div>
+  <div id="editor" class="card"><div class="empty">Select a player from the list.</div></div>
+ </div>`;
+ renderList();
+}
+function renderList(){
+ const q=($('searchPlayer')?.value||'').toLowerCase();
+ const rows=REGS.filter(r=>{const p=r.players;return (p.display_name||p.full_name||'').toLowerCase().includes(q)|| (p.phone||'').includes(q)});
+ $('playerList').innerHTML=rows.map(r=>`<button class="btn secondary" style="width:100%;text-align:left;margin:4px 0" onclick="selectPlayer('${r.player_id}')">${esc(r.players.display_name||r.players.full_name)}<br><small>${esc(r.players.playing_role||'Player')} · ${esc(r.players.phone||'')}</small></button>`).join('')||'<p class="muted">No approved players found.</p>';
+}
+function filterPlayers(){renderList()}
+function selectPlayer(id){CURRENT=REGS.find(r=>r.player_id===id)?.players;if(!CURRENT)return;renderEditor()}
+function renderEditor(){
+ const p=CURRENT;
+ $('editor').innerHTML=`<div class="row between"><div><h2>${esc(p.full_name)}</h2><p class="muted">Edit profile and performance stats</p></div>${p.profile_photo_url?`<img src="${esc(p.profile_photo_url)}" class="player-photo" alt="">`:'<div class="player-photo placeholder">🏏</div>'}</div>
+ <div id="saveMsg"></div>
+ <div class="grid section">
+  <div><label>Display name</label><input id="display_name" value="${esc(p.display_name||'')}"></div>
+  <div><label>Playing role</label><select id="playing_role"><option value="">Select role</option>${[['batsman','Batsman'],['bowler','Bowler'],['all_rounder','All-rounder'],['wicket_keeper','Wicket Keeper']].map(([v,l])=>`<option value="${v}" ${p.playing_role===v?'selected':''}>${l}</option>`).join('')}</select></div>
+  <div><label>Batting style</label><input id="batting_style" value="${esc(p.batting_style||'')}" placeholder="Right-hand / Left-hand"></div>
+  <div><label>Bowling style</label><input id="bowling_style" value="${esc(p.bowling_style||'')}" placeholder="Right-arm medium, Off spin..."></div>
+ </div>
+ <h3 class="section">Performance Statistics</h3><p class="muted">These values are displayed on the live auction screen for Admin and Captains.</p>
+ <div class="grid">
+  <div><label>Matches</label><input id="cricheroes_matches" type="number" min="0" step="1" value="${p.cricheroes_matches??''}"></div>
+  <div><label>Runs</label><input id="cricheroes_runs" type="number" min="0" step="1" value="${p.cricheroes_runs??''}"></div>
+  <div><label>Wickets</label><input id="cricheroes_wickets" type="number" min="0" step="1" value="${p.cricheroes_wickets??''}"></div>
+  <div><label>Strike Rate</label><input id="cricheroes_strike_rate" type="number" min="0" step="0.01" value="${p.cricheroes_strike_rate??''}"></div>
+  <div><label>Economy</label><input id="cricheroes_economy" type="number" min="0" step="0.01" value="${p.cricheroes_economy??''}"></div>
+ </div>
+ <div class="section"><label>CricHeroes Profile URL</label><input id="cricheroes_profile_url" type="url" value="${esc(p.cricheroes_profile_url||'')}" placeholder="https://..."></div>
+ <div class="section"><label>Update Player Photo</label><input id="photo" type="file" accept="image/*"><small class="muted">JPG or PNG recommended.</small></div>
+ <div class="row section"><button class="btn success" onclick="savePlayer()">Save Player Information</button><button class="btn secondary" onclick="renderEditor()">Reset</button></div>`;
+}
+async function savePlayer(){
+ const m=$('saveMsg');m.innerHTML='';
+ try{
+  const patch={};
+  for(const f of fields){
+   const el=$(f);let v=el.value.trim();
+   if(['cricheroes_matches','cricheroes_runs','cricheroes_wickets'].includes(f))patch[f]=v===''?null:Number(v);
+   else if(['cricheroes_strike_rate','cricheroes_economy'].includes(f))patch[f]=v===''?null:Number(v);
+   else patch[f]=v||null;
+  }
+  for(const f of ['cricheroes_matches','cricheroes_runs','cricheroes_wickets','cricheroes_strike_rate','cricheroes_economy']){
+   if(patch[f]!==null&&(!Number.isFinite(patch[f])||patch[f]<0))throw new Error('Enter valid non-negative statistics.');
+  }
+  const file=$('photo').files[0];
+  if(file){
+   if(!file.type.startsWith('image/'))throw new Error('Please select an image file.');
+   const ext=(file.name.split('.').pop()||'jpg').toLowerCase();
+   const path=`${T.id}/${CURRENT.id}-${Date.now()}.${ext}`;
+   const {error:upErr}=await sb.storage.from('player-photos').upload(path,file,{upsert:true,contentType:file.type});
+   if(upErr)throw upErr;
+   const {data}=sb.storage.from('player-photos').getPublicUrl(path);
+   patch.profile_photo_url=data.publicUrl;
+  }
+  const {error}=await sb.from('players').update(patch).eq('id',CURRENT.id);
+  if(error)throw error;
+  Object.assign(CURRENT,patch);
+  const reg=REGS.find(r=>r.player_id===CURRENT.id);if(reg)reg.players=CURRENT;
+  m.innerHTML=msg('Player information saved. Updated details will appear on the auction screen when the player is displayed.');
+  renderEditor();
+  $('saveMsg').innerHTML=msg('Player information saved successfully.');
+ }catch(e){m.innerHTML=msg(e.message,'err')}
+}
+load();
+</script></body></html>

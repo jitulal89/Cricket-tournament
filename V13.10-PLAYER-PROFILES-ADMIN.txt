@@ -1,0 +1,9 @@
+V13.10 - ADMIN PLAYER PROFILE & STATS EDITOR
+
+Added admin-player-profiles.html, accessible from Admin > Tournament Management.
+Admins can select approved players and edit display name, playing role, batting/bowling style,
+matches, runs, wickets, strike rate, economy, CricHeroes profile URL and player photo.
+Changes update the existing public.players profile columns; no new database columns or
+tables are required. Live auction admin and captain pages already select and display these
+profile/stat fields, so refreshed auction views show the updated values.
+Photo upload uses the existing public player-photos storage bucket from migration 007_v13_3_player_profiles.sql.
