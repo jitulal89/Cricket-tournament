@@ -1,0 +1,19 @@
+V13.12 - PUBLIC LIVE AUCTION
+
+Added public-auction.html:
+- Public, no-login spectator page.
+- Shows current live player profile and cricket statistics.
+- Shows current bid, minimum bid and leading team.
+- Shows teams and players sold with winning price.
+- Subscribes to auction session and squad changes; also refreshes periodically as fallback.
+- Read-only: no bidding or admin actions are exposed.
+
+Added Share Live Auction button to Admin Live Auction page.
+Added Watch Live Auction link to public Tournament page.
+No database schema changes included.
+
+Share URL format:
+public-auction.html?slug=YOUR-TOURNAMENT-SLUG
+
+The existing Supabase public read policies for auction_sessions, auction_squad, player data,
+registrations, teams and categories are required for all spectator details to load.

@@ -1,0 +1,12 @@
+V13.11 - BULK PLAYER REGISTRATION & PROFILE UPDATE
+
+New admin-player-bulk-upload.html page:
+- Download Excel template with dropdowns for playing role, batting style, bowling style and registration status.
+- Upload .xlsx/.xls, preview rows and validate required fields.
+- Match existing player by supplied Player ID first, otherwise by phone.
+- Update existing players or create new players.
+- Update an existing registration for the selected tournament or create one if missing.
+- Blank Registration Status defaults to approved.
+- Photo is optional; a hosted public Photo URL can be supplied. Embedded Excel images are not imported.
+- Row-level failures are shown after processing; successful rows are retained.
+- No schema migration required. Uses existing players and player_registrations tables.

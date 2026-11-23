@@ -1,0 +1,115 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bulk Player Upload</title><link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+.bulk-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:18px;align-items:start}
+@media(max-width:760px){.bulk-grid{grid-template-columns:1fr}.top{height:auto;min-height:70px;flex-wrap:wrap}.top .brand{white-space:normal}}
+.preview-wrap{overflow-x:auto}.preview-wrap table{min-width:850px}.hint{font-size:13px;color:#64748b}
+</style></head>
+<body><header class="top"><div class="brand">📥 Bulk Player Upload</div><nav id="nav" class="nav"></nav></header>
+<main id="app"></main><script src="app.js"></script><script>
+let T=null,ROWS=[],HEADERS=[];
+const $=id=>document.getElementById(id);
+const EXPECTED=['player id (optional)','full name*','display name','phone*','email','date of birth (yyyy-mm-dd)','playing role*','batting style','bowling style','matches','runs','wickets','strike rate','economy','cricheroes profile url','photo url (optional)','registration status'];
+async function load(){
+ if(!(await requireAdmin()))return;await setNav();
+ try{T=await getTournament(qs('slug'));render()}catch(e){$('app').innerHTML=msg(e.message,'err')}
+}
+function render(){
+ $('app').innerHTML=`<div class="row between"><div><h1 style="font-size:32px">Bulk Player Registration & Update</h1><p class="muted">${esc(T.name)}</p></div><a class="btn secondary" href="admin-player-profiles.html?slug=${encodeURIComponent(T.slug)}">← Player Profiles</a></div>
+ <div class="card section"><h2>1. Download Excel Template</h2><p class="muted">Use the supplied workbook with dropdowns for playing role, batting style, bowling style and registration status.</p><a class="btn" href="cricket-player-bulk-upload-template.xlsx" download>⬇ Download Excel Template</a><p class="hint section">Required: Full Name, Phone and Playing Role. Keep the column headers unchanged.</p></div>
+ <div class="card section"><h2>2. Upload completed Excel file</h2><label>Select Excel workbook (.xlsx or .xls)</label><input id="excelFile" type="file" accept=".xlsx,.xls" onchange="readFile()"><p class="hint">Player photo is optional. Use Photo URL (optional) if the image is already hosted publicly. Embedded Excel images are not imported.</p><div id="fileMsg" class="section"></div></div>
+ <div id="preview"></div>`;
+}
+function norm(v){return String(v??'').trim().toLowerCase()}
+function val(row,...names){for(const n of names){const k=Object.keys(row).find(x=>norm(x)===norm(n));if(k!==undefined)return row[k]}return ''}
+async function readFile(){
+ const f=$('excelFile').files[0];if(!f)return;
+ try{
+  const data=await f.arrayBuffer(),wb=XLSX.read(data,{type:'array',cellDates:true});
+  const sheet=wb.Sheets['Player Upload']||wb.Sheets[wb.SheetNames[0]];
+  if(!sheet)throw new Error('No worksheet found.');
+  const raw=XLSX.utils.sheet_to_json(sheet,{defval:'',raw:false});
+  if(!raw.length)throw new Error('The worksheet has no player rows.');
+  ROWS=raw.map((r,i)=>({...r,__row:i+2}));
+  const required=['Full Name*','Phone*','Playing Role*'];
+  const headers=Object.keys(raw[0]).map(norm);
+  const missing=required.filter(h=>!headers.includes(norm(h)));
+  if(missing.length)throw new Error('Missing required column(s): '+missing.join(', ')+'. Please use the provided template.');
+  validateAndPreview();
+ }catch(e){$('fileMsg').innerHTML=msg(e.message,'err');$('preview').innerHTML=''}
+}
+function validateAndPreview(){
+ const seen=new Set();let invalid=0;
+ ROWS=ROWS.map(r=>{
+  const phone=String(val(r,'Phone*')).replace(/\s+/g,'').trim();
+  const name=String(val(r,'Full Name*')).trim();
+  const role=norm(val(r,'Playing Role*')).replace(/[\s-]+/g,'_');
+  const key=phone;
+  let err='';
+  if(!name||!phone||!role)err='Missing name, phone or role';
+  else if(!['batsman','bowler','all_rounder'].includes(role))err='Invalid playing role';
+  else if(seen.has(key))err='Duplicate phone in file';
+  if(key)seen.add(key);
+  if(err)invalid++;
+  return {...r,__phone:phone,__role:role,__error:err};
+ });
+ const good=ROWS.length-invalid;
+ $('fileMsg').innerHTML=msg(`Read ${ROWS.length} rows. ${good} valid, ${invalid} need correction.`,invalid?'err':'ok');
+ $('preview').innerHTML=`<div class="card section"><div class="row between"><h2>3. Preview upload</h2><span class="pill">${good} valid / ${invalid} errors</span></div><p class="muted">Existing players are matched by Player ID first, then Phone. Their existing tournament registration is updated; missing registrations are created.</p><div class="preview-wrap"><table class="table"><thead><tr><th>Excel row</th><th>Player</th><th>Phone</th><th>Role</th><th>Registration</th><th>Validation</th></tr></thead><tbody>${ROWS.slice(0,100).map(r=>`<tr><td>${r.__row}</td><td>${esc(val(r,'Full Name*'))}</td><td>${esc(r.__phone)}</td><td>${esc(r.__role)}</td><td>${esc(val(r,'Registration Status')||'approved')}</td><td>${r.__error?`<span style="color:#b91c1c">${esc(r.__error)}</span>`:'<span style="color:#15803d">Ready</span>'}</td></tr>`).join('')}</tbody></table></div>${ROWS.length>100?`<p class="hint">Showing first 100 rows of ${ROWS.length}.</p>`:''}<div class="row section"><button class="btn success" id="uploadBtn" onclick="uploadRows()" ${invalid?'disabled':''}>Upload ${good} Players</button><button class="btn secondary" onclick="resetUpload()">Clear</button></div><div id="uploadProgress" class="section"></div></div>`;
+}
+function cleanNumber(v){if(v===null||v===undefined||String(v).trim()==='')return null;const n=Number(v);if(!Number.isFinite(n)||n<0)throw new Error('Statistics must be non-negative numbers.');return n}
+function cleanDate(v){if(!v)return null;if(v instanceof Date)return v.toISOString().slice(0,10);const s=String(v).trim();if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;const d=new Date(s);if(Number.isNaN(d.getTime()))throw new Error('Date of Birth must use YYYY-MM-DD.');return d.toISOString().slice(0,10)}
+function makePatch(r){
+ const role=norm(val(r,'Playing Role*')).replace(/[\s-]+/g,'_');
+ const bat=norm(val(r,'Batting Style')).replace(/[\s-]+/g,'_');
+ const bowl=norm(val(r,'Bowling Style')).replace(/[\s-]+/g,'_');
+ if(bat&&!['right_hand','left_hand'].includes(bat))throw new Error('Invalid batting style: '+bat);
+ if(bowl&&!['right_arm_fast','right_arm_medium','right_arm_spin','left_arm_fast','left_arm_medium','left_arm_spin','none'].includes(bowl))throw new Error('Invalid bowling style: '+bowl);
+ const patch={full_name:String(val(r,'Full Name*')).trim(),display_name:String(val(r,'Display Name')).trim()||null,phone:r.__phone,email:String(val(r,'Email')).trim()||null,date_of_birth:cleanDate(val(r,'Date of Birth (YYYY-MM-DD)')),playing_role:role,batting_style:bat||null,bowling_style:bowl||null,cricheroes_matches:cleanNumber(val(r,'Matches')),cricheroes_runs:cleanNumber(val(r,'Runs')),cricheroes_wickets:cleanNumber(val(r,'Wickets')),cricheroes_strike_rate:cleanNumber(val(r,'Strike Rate')),cricheroes_economy:cleanNumber(val(r,'Economy')),cricheroes_profile_url:String(val(r,'CricHeroes Profile URL')).trim()||null};
+ const photo=String(val(r,'Photo URL (optional)')).trim();if(photo)patch.profile_photo_url=photo;
+ return patch;
+}
+async function uploadRows(){
+ const btn=$('uploadBtn');if(btn)btn.disabled=true;
+ const results={created:0,updated:0,regCreated:0,regUpdated:0,failed:[]};
+ for(let i=0;i<ROWS.length;i++){
+  const r=ROWS[i];if(r.__error)continue;
+  const progress=$('uploadProgress');if(progress)progress.innerHTML=`<p>Processing ${i+1} of ${ROWS.length}: ${esc(val(r,'Full Name*'))}</p>`;
+  try{
+   const patch=makePatch(r);
+   let player=null;
+   const suppliedId=String(val(r,'Player ID (optional)')).trim();
+   if(suppliedId){
+    const {data,error}=await sb.from('players').select('id').eq('id',suppliedId).maybeSingle();
+    if(error)throw error;if(data)player=data;
+   }
+   if(!player){
+    const {data,error}=await sb.from('players').select('id').eq('phone',patch.phone).maybeSingle();
+    if(error)throw error;if(data)player=data;
+   }
+   if(player){
+    const {error}=await sb.from('players').update(patch).eq('id',player.id);if(error)throw error;results.updated++;
+   }else{
+    const {data,error}=await sb.from('players').insert(patch).select('id').single();if(error)throw error;player=data;results.created++;
+   }
+   const {data:reg,error:re}=await sb.from('player_registrations').select('id,status').eq('tournament_id',T.id).eq('player_id',player.id).maybeSingle();
+   if(re)throw re;
+   const regStatus=norm(val(r,'Registration Status'))||'approved';
+   if(!['pending','approved','rejected'].includes(regStatus))throw new Error('Registration Status must be pending, approved or rejected.');
+   if(reg){
+    const {error}=await sb.from('player_registrations').update({status:regStatus}).eq('id',reg.id);if(error)throw error;results.regUpdated++;
+   }else{
+    const {error}=await sb.from('player_registrations').insert({tournament_id:T.id,player_id:player.id,status:regStatus});if(error)throw error;results.regCreated++;
+   }
+  }catch(e){results.failed.push(`Excel row ${r.__row}: ${e.message}`)}
+ }
+ const msgHtml=`<div class="notice"><strong>Upload finished</strong><br>New players: ${results.created}<br>Updated players: ${results.updated}<br>New registrations: ${results.regCreated}<br>Updated registrations: ${results.regUpdated}<br>Failed rows: ${results.failed.length}</div>${results.failed.length?`<div class="warning section"><strong>Errors</strong><ul>${results.failed.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`:''}`;
+ $('uploadProgress').innerHTML=msgHtml;
+ if(btn)btn.disabled=false;
+}
+function resetUpload(){ROWS=[];render()}
+load();
+</script></body></html>

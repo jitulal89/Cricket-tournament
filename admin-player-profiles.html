@@ -20,7 +20,7 @@ async function load(){
  }catch(e){$('app').innerHTML=msg(e.message,'err')}
 }
 function render(){
- $('app').innerHTML=`<div class="row between"><div><h1 style="font-size:34px">Manage Player Profiles</h1><p class="muted">${esc(T.name)} · Update player details and auction statistics</p></div><a class="btn secondary" href="admin-tournament.html?slug=${encodeURIComponent(T.slug)}">← Tournament</a></div>
+ $('app').innerHTML=`<div class="row between"><div><h1 style="font-size:34px">Manage Player Profiles</h1><p class="muted">${esc(T.name)} · Update player details and auction statistics</p></div><div class="row"><a class="btn" href="admin-player-bulk-upload.html?slug=${encodeURIComponent(T.slug)}">📥 Bulk Upload Excel</a><a class="btn secondary" href="admin-tournament.html?slug=${encodeURIComponent(T.slug)}">← Tournament</a></div></div>
  <div class="grid section" style="grid-template-columns:minmax(220px,1fr) 2fr;align-items:start">
   <div class="card"><h2>Approved Players</h2><p class="muted">Select a player to edit the information shown to captains during the live auction.</p>
    <input id="searchPlayer" placeholder="Search player..." oninput="filterPlayers()">
@@ -56,7 +56,7 @@ function renderEditor(){
   <div><label>Economy</label><input id="cricheroes_economy" type="number" min="0" step="0.01" value="${p.cricheroes_economy??''}"></div>
  </div>
  <div class="section"><label>CricHeroes Profile URL</label><input id="cricheroes_profile_url" type="url" value="${esc(p.cricheroes_profile_url||'')}" placeholder="https://..."></div>
- <div class="section"><label>Update Player Photo</label><input id="photo" type="file" accept="image/*"><small class="muted">JPG or PNG recommended.</small></div>
+ <div class="section"><label>Update Player Photo (Optional)</label><input id="photo" type="file" accept="image/*"><small class="muted">JPG or PNG recommended.</small></div>
  <div class="row section"><button class="btn success" onclick="savePlayer()">Save Player Information</button><button class="btn secondary" onclick="renderEditor()">Reset</button></div>`;
 }
 async function savePlayer(){

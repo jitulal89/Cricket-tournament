@@ -1,0 +1,108 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Public Live Auction</title><link rel="stylesheet" href="styles.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+.spectator-hero{background:linear-gradient(135deg,#111827,#334155);color:#fff;border-radius:20px;padding:clamp(18px,4vw,32px);margin:18px 0}
+.live-tag{display:inline-flex;align-items:center;gap:8px;background:#dc2626;color:#fff;padding:7px 12px;border-radius:999px;font-weight:800;font-size:13px}
+.live-dot{width:8px;height:8px;background:#fff;border-radius:50%;display:inline-block;animation:pulse 1.2s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.spectator-bid{font-size:clamp(42px,9vw,76px);font-weight:900;line-height:1.1;margin:14px 0}
+.spectator-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:10px;margin:18px 0}
+.spectator-stats>div{background:#ffffff18;border:1px solid #ffffff25;border-radius:12px;padding:12px}
+.spectator-stats b{display:block;font-size:24px}.spectator-stats span{font-size:12px;color:#cbd5e1}
+.spectator-team{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:14px}
+.spectator-team.lead{border:2px solid #16a34a;background:#f0fdf4}
+.spectator-photo{width:116px;height:116px;border-radius:16px;object-fit:cover;background:#e5e7eb}
+@media(max-width:680px){.spectator-photo{width:88px;height:88px}.top{height:auto;min-height:66px;flex-wrap:wrap}}
+</style></head><body>
+<header class="top"><div class="brand">🏏 Live Auction – Spectator View</div><nav id="nav" class="nav"></nav></header>
+<main id="app"></main>
+<script src="app.js"></script><script>
+let T=null,S=null,CHANNEL=null,REFRESHING=false;
+const $=id=>document.getElementById(id);
+const liveUrl=()=>location.href.split('?')[0]+'?slug='+encodeURIComponent(T.slug);
+async function load(){
+ await setNav();
+ try{T=await getTournament(qs('slug'));if(!T)throw new Error('Tournament not found.');await refresh();subscribe();setInterval(refresh,7000)}
+ catch(e){$('app').innerHTML=msg(e.message,'err')}
+}
+async function refresh(){
+ if(!T||REFRESHING)return;REFRESHING=true;
+ try{
+  const {data:s,error}=await sb.from('auction_sessions').select('*').eq('tournament_id',T.id).maybeSingle();
+  if(error)throw error;S=s;
+  const teamRes=await sb.from('teams').select('id,name').eq('tournament_id',T.id).order('name');
+  if(teamRes.error)throw teamRes.error;
+  const teams=teamRes.data||[];
+  let current=null,cat=null;
+  const currentPlayerId=S?.current_player_id||null;
+  if(currentPlayerId){
+   const [pRes,rRes]=await Promise.all([
+    sb.from('players').select('id,full_name,display_name,playing_role,profile_photo_url,batting_style,bowling_style,cricheroes_matches,cricheroes_runs,cricheroes_wickets,cricheroes_strike_rate,cricheroes_economy,cricheroes_profile_url').eq('id',currentPlayerId).maybeSingle(),
+    sb.from('player_registrations').select('auction_category_id').eq('tournament_id',T.id).eq('player_id',currentPlayerId).eq('status','approved').maybeSingle()
+   ]);
+   if(pRes.error)throw pRes.error;if(rRes.error)throw rRes.error;current=pRes.data;
+   if(rRes.data?.auction_category_id){const c=await sb.from('auction_categories').select('name,minimum_bid').eq('id',rRes.data.auction_category_id).maybeSingle();if(c.error)throw c.error;cat=c.data}
+  }
+  const soldRes=await sb.from('auction_squad').select('player_id,team_id,purchase_price').eq('tournament_id',T.id).order('created_at',{ascending:false});
+  if(soldRes.error)throw soldRes.error;
+  const sold=soldRes.data||[],pids=[...new Set(sold.map(x=>x.player_id))];
+  let soldPlayers=[];
+  if(pids.length){const p=await sb.from('players').select('id,full_name,display_name').in('id',pids);if(p.error)throw p.error;soldPlayers=p.data||[]}
+  render({teams,current,cat,sold,soldPlayers});
+ }catch(e){if(!$('app').innerHTML)$('app').innerHTML=msg(e.message,'err');else $('refreshError').textContent='Refresh issue: '+e.message}
+ finally{REFRESHING=false}
+}
+function render(d){
+ const {teams,current,cat,sold,soldPlayers}=d;
+ const teamName=id=>teams.find(t=>t.id===id)?.name||'—';
+ const playerName=id=>{const p=soldPlayers.find(x=>x.id===id);return p?.display_name||p?.full_name||'Player'};
+ const status=S?.status||'not_started';
+ let stateText=status==='live'?'LIVE NOW':status==='completed'?'AUCTION COMPLETED':status==='ready'?'READY TO START':'NOT STARTED';
+ let currentBlock='';
+ if(status==='live'&&current){
+  currentBlock=`<section class="spectator-hero">
+   <div class="live-tag"><span class="live-dot"></span> LIVE AUCTION</div>
+   <p style="color:#cbd5e1;margin:14px 0 4px">CURRENT PLAYER · ${esc(cat?.name||'AUCTION')}</p>
+   <div class="row" style="align-items:center;gap:18px;flex-wrap:wrap">
+    ${current.profile_photo_url?`<img class="spectator-photo" src="${esc(current.profile_photo_url)}" alt="">`:`<div class="spectator-photo" style="display:grid;place-items:center;font-size:42px">🏏</div>`}
+    <div style="flex:1;min-width:180px"><h2 style="font-size:clamp(28px,6vw,44px);margin:0">${esc(current.display_name||current.full_name)}</h2>
+    <div class="role-badge">${esc((current.playing_role||'').replace('_',' ')||'Player')}</div>
+    <p style="color:#cbd5e1">${esc(current.batting_style||'')} ${current.bowling_style?' · '+esc(current.bowling_style):''}</p>
+    ${current.cricheroes_profile_url?`<a class="profile-link" target="_blank" rel="noopener" href="${esc(current.cricheroes_profile_url)}">CricHeroes Profile ↗</a>`:''}</div>
+   </div>
+   <div class="spectator-stats">
+    <div><b>${current.cricheroes_matches??'—'}</b><span>Matches</span></div><div><b>${current.cricheroes_runs??'—'}</b><span>Runs</span></div>
+    <div><b>${current.cricheroes_wickets??'—'}</b><span>Wickets</span></div><div><b>${current.cricheroes_strike_rate??'—'}</b><span>Strike Rate</span></div>
+    <div><b>${current.cricheroes_economy??'—'}</b><span>Economy</span></div>
+   </div>
+   <div style="color:#cbd5e1">Minimum bid: ${money(cat?.minimum_bid||0)}</div>
+   <div class="spectator-bid">${money(S.current_bid)}</div>
+   <div style="font-size:18px">${S.leading_team_id?`Leading team: <strong>${esc(teamName(S.leading_team_id))}</strong>`:'No team has placed a bid yet'}</div>
+  </section>`;
+ }else{
+  currentBlock=`<section class="card section" style="text-align:center;padding:32px"><div style="font-size:46px">${status==='completed'?'🏆':'🏏'}</div><h2>${status==='completed'?'Auction Completed':status==='ready'?'Auction is ready to start':'Auction has not started yet'}</h2><p class="muted">${status==='completed'?'The final results are shown below.':'Keep this page open. It will update automatically when the auction starts.'}</p></section>`;
+ }
+ $('app').innerHTML=`<div class="row between"><div><h1 style="font-size:clamp(26px,5vw,38px)">${esc(T.name)}</h1><p class="muted">Public spectator link · View only</p></div><button class="btn" onclick="shareLink()">🔗 Share Live Auction</button></div>
+ <div class="row section"><span class="pill ${status==='live'?'green':''}">${esc(stateText)}</span><span class="muted">Auto-refreshes every few seconds</span></div>
+ ${currentBlock}
+ <div id="refreshError" class="hint"></div>
+ <div class="card section"><h2>Teams</h2><div class="grid">${teams.map(t=>`<div class="spectator-team ${S?.leading_team_id===t.id?'lead':''}"><strong>${esc(t.name)}</strong>${S?.leading_team_id===t.id?'<span class="pill green"> LEADING </span>':''}</div>`).join('')||'<p class="muted">Teams will appear here.</p>'}</div></div>
+ <div class="card section"><div class="row between"><h2>Players Sold</h2><span class="pill">${sold.length}</span></div><div class="table-wrap"><table class="table"><thead><tr><th>Player</th><th>Team</th><th>Winning Bid</th></tr></thead><tbody>${sold.map(x=>`<tr><td>${esc(playerName(x.player_id))}</td><td>${esc(teamName(x.team_id))}</td><td>${money(x.purchase_price)}</td></tr>`).join('')||'<tr><td colspan="3" class="empty">Sold players will appear here.</td></tr>'}</tbody></table></div></div>
+ <div class="row section"><a class="btn secondary" href="tournament.html?slug=${encodeURIComponent(T.slug)}">← Tournament Home</a><a class="btn secondary" href="auction-results.html?slug=${encodeURIComponent(T.slug)}">Full Auction Results</a></div>`;
+}
+async function shareLink(){
+ const url=liveUrl();
+ if(navigator.share){try{await navigator.share({title:T.name+' – Live Auction',text:'Watch the live cricket auction',url});return}catch(e){if(e.name==='AbortError')return}}
+ try{await navigator.clipboard.writeText(url);alert('Live auction link copied. Share it with everyone.')}catch(e){prompt('Copy this live auction link:',url)}
+}
+function subscribe(){
+ if(CHANNEL)sb.removeChannel(CHANNEL);
+ CHANNEL=sb.channel('public-auction-'+T.id)
+ .on('postgres_changes',{event:'*',schema:'public',table:'auction_sessions',filter:'tournament_id=eq.'+T.id},refresh)
+ .on('postgres_changes',{event:'*',schema:'public',table:'auction_squad',filter:'tournament_id=eq.'+T.id},refresh)
+ .subscribe();
+}
+load();
+</script></body></html>

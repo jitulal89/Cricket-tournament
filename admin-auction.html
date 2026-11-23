@@ -3,6 +3,8 @@
 </style></head><body><header class="top"><div class="brand">🔨 Live Auction — Admin</div><nav id="nav" class="nav"></nav></header><main id="app"></main><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="app.js"></script><script>
 let T,A,S,CATS=[],TEAMS=[],PLAYERS=[],CATMAP={},channel=null;
 const $=id=>document.getElementById(id);
+function publicAuctionUrl(){return location.href.split('?')[0].replace(/admin-auction\.html$/,'public-auction.html')+'?slug='+encodeURIComponent(T.slug)}
+async function sharePublicAuction(){const url=publicAuctionUrl();if(navigator.share){try{await navigator.share({title:T.name+' – Live Auction',text:'Watch the live cricket auction',url});return}catch(e){if(e.name==='AbortError')return}}try{await navigator.clipboard.writeText(url);alert('Public live auction link copied. Share it with everyone.')}catch(e){prompt('Copy this public live auction link:',url)}}
 async function loadBase(){
  if(!(await requireAdmin()))return; await setNav();
  try{
@@ -26,12 +28,12 @@ function queueRemaining(catId){if(!S)return [];const arr=S.category_queues?.[cat
 function render(){
  if(!A){$('app').innerHTML='<div class="card">Auction settings not found.</div>';return}
  if(!S){
-  $('app').innerHTML=`<div class="card"><h2>Auction is ready to start</h2><p class="muted">Choose the category order below. Players will be shuffled automatically inside each category when you start.</p>${categoryOrderEditor()}<button class="btn success bigbtn" onclick="startAuction()">▶ Start Auction</button></div>`;return;
+  $('app').innerHTML=`<div class="card"><h2>Auction is ready to start</h2><p class="muted">Choose the category order below. Players will be shuffled automatically inside each category when you start.</p>${categoryOrderEditor()}<div class="row section"><button class="btn secondary" onclick="sharePublicAuction()">🔗 Share Spectator Link</button><button class="btn success bigbtn" onclick="startAuction()">▶ Start Auction</button></div></div>`;return;
  }
  const cp=player(S.current_player_id),cat=currentCategory();
- if(S.status==='completed'){$('app').innerHTML=`<div class="card"><h1>🏆 Auction Completed</h1><p>${esc(T.name)}</p><a class="btn" href="auction-results.html?slug=${encodeURIComponent(T.slug)}">View Results</a></div>`;return}
+ if(S.status==='completed'){$('app').innerHTML=`<div class="card"><h1>🏆 Auction Completed</h1><p>${esc(T.name)}</p><div class="row"><a class="btn" href="auction-results.html?slug=${encodeURIComponent(T.slug)}">View Results</a><button class="btn secondary" onclick="sharePublicAuction()">🔗 Share Public Auction Page</button></div></div>`;return}
  $('app').innerHTML=`
- <div class="row between"><div><h1 style="font-size:36px">Live Auction</h1><p class="muted">${esc(T.name)} · <span class="status-dot"></span>${esc(S.status.toUpperCase())}</p></div><div class="row"><a class="btn secondary" href="admin-pre-auction.html?slug=${encodeURIComponent(T.slug)}">Setup</a><button class="btn secondary" onclick="location.reload()">Refresh</button></div></div>
+ <div class="row between"><div><h1 style="font-size:36px">Live Auction</h1><p class="muted">${esc(T.name)} · <span class="status-dot"></span>${esc(S.status.toUpperCase())}</p></div><div class="row"><a class="btn secondary" href="admin-pre-auction.html?slug=${encodeURIComponent(T.slug)}">Setup</a><button class="btn" onclick="sharePublicAuction()">🔗 Share Live Auction</button><button class="btn secondary" onclick="location.reload()">Refresh</button></div></div>
  <div class="auction-hero">
   <div class="pill">CATEGORY ${esc(cat?.name||'—')}</div>
   <div class="mini" style="color:#cbd5e1;margin-top:8px">CURRENT PLAYER</div>
