@@ -1,0 +1,7 @@
+V13.13 - MINIMUM OPENING BID FIX
+
+- Admin team bid fields and admin override now initialize to the current player's category minimum bid.
+- Captain bid field now initializes to the category minimum when no team has placed a bid.
+- The bid increment is applied only after a team has placed the opening bid and is leading.
+- Admin, captain and public spectator bid displays show the minimum bid as the opening amount when no leading team exists.
+- Existing server-side bid validation already allows the first bid at the category minimum and applies increment only after a leading team exists; no SQL migration required.

@@ -78,7 +78,7 @@ function render(d){
     <div><b>${current.cricheroes_economy??'—'}</b><span>Economy</span></div>
    </div>
    <div style="color:#cbd5e1">Minimum bid: ${money(cat?.minimum_bid||0)}</div>
-   <div class="spectator-bid">${money(S.current_bid)}</div>
+   <div class="spectator-bid">${money(S.leading_team_id?S.current_bid:(cat?.minimum_bid??S.current_bid))}</div>
    <div style="font-size:18px">${S.leading_team_id?`Leading team: <strong>${esc(teamName(S.leading_team_id))}</strong>`:'No team has placed a bid yet'}</div>
   </section>`;
  }else{
