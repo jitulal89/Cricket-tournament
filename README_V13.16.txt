@@ -1,0 +1,1 @@
+V13.16 — Single category auto-assignment\nSee V13.16-SINGLE-CATEGORY-AUTO-ASSIGN.txt.\nReplace admin-pre-auction.html. No database migration required.\n

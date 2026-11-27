@@ -16,6 +16,20 @@ async function loadData(){
  ]);
  if(results.some(x=>x.error)) throw results.find(x=>x.error).error;
  REGS=results[0].data||[]; CATS=results[1].data||[]; TEAMS=results[2].data||[]; AUCTION=results[3].data; INVITES=results[4].data||[];
+ // If exactly one category is configured, automatically assign all approved
+ // non-captain auction players to it. Captains remain uncategorized.
+ if(CATS.length===1){
+   const captainIds=new Set(TEAMS.map(t=>t.captain_id).filter(Boolean));
+   const needsAssignment=REGS.some(r=>!captainIds.has(r.player_id)&&r.auction_category_id!==CATS[0].id);
+   if(needsAssignment){
+     const {error}=await sb.from("player_registrations")
+       .update({auction_category_id:CATS[0].id})
+       .eq("tournament_id",T.id).eq("status","approved")
+       .neq("is_captain",true);
+     if(error) throw error;
+     REGS=REGS.map(r=>captainIds.has(r.player_id)?r:{...r,auction_category_id:CATS[0].id});
+   }
+ }
 }
 function captainIds(){return new Set(TEAMS.map(t=>t.captain_id).filter(Boolean))}
 function auctionPlayers(){const ids=captainIds();return REGS.filter(r=>!ids.has(r.player_id))}
@@ -31,7 +45,7 @@ function render(){
  const c=checks(),players=auctionPlayers();
  app.innerHTML=`
  <div class="row between"><div><h1 style="font-size:36px">Pre-Auction Setup</h1><p class="muted">${esc(T.name)}</p></div><div class="row"><a class="btn secondary" href="admin-tournament.html?slug=${encodeURIComponent(T.slug)}">← Tournament</a><a class="btn secondary" href="admin-auction.html?slug=${encodeURIComponent(T.slug)}">Auction →</a></div></div>
- <div class="notice section"><strong>Before the auction can start:</strong> decide the number of teams, select one captain for every team, create a captain login for each selected captain, create categories with minimum bids, and assign every non-captain to a category.</div>
+ <div class="notice section"><strong>Before the auction can start:</strong> decide the number of teams, select one captain for every team, create a captain login for each selected captain, create categories with minimum bids, and assign every non-captain to a category. If exactly one category exists, all approved non-captains are automatically assigned to it.</div>
  <div class="grid section"><div class="card"><div class="stat">${REGS.length}</div><div class="muted">Approved Players</div></div><div class="card"><div class="stat">${TEAMS.filter(t=>t.captain_id).length}/${Number(T.number_of_teams)||0}</div><div class="muted">Captains Selected</div></div><div class="card"><div class="stat">${players.length}</div><div class="muted">Players for Auction</div></div><div class="card"><div class="stat">${players.filter(p=>p.auction_category_id).length}/${players.length}</div><div class="muted">Players Categorized</div></div></div>
 
  <div class="card section"><h2>1️⃣ Decide Number of Teams</h2><p class="muted">You currently have <strong>${REGS.length}</strong> approved registrations.</p><div class="grid"><div><label>Number of teams</label><input id="teamCount" type="number" min="2" value="${Number(T.number_of_teams)||4}"></div><div class="row" style="align-items:end"><button class="btn" onclick="saveTeams()">Save Number of Teams</button></div></div><div class="${c.teamsOK?'msg ok':'warning'}">${c.teamsOK?'✅ Team slots created.':'⚠️ Save the number of teams to create team slots.'}</div></div>
@@ -40,7 +54,7 @@ function render(){
  ${TEAMS.length?`<div class="grid">${TEAMS.map(t=>{const p=captainForTeam(t),inv=inviteForTeam(t);return `<div class="team-card" style="border:1px solid #e5e7eb;border-radius:14px;padding:14px;background:#fff"><h3>${esc(t.name)}</h3><label>Captain</label><select onchange="setCaptain('${t.id}',this.value)"><option value="">Select Captain</option>${REGS.map(r=>{const used=TEAMS.some(x=>x.id!==t.id&&x.captain_id===r.player_id);return `<option value="${r.player_id}" ${r.player_id===t.captain_id?'selected':''} ${used?'disabled':''}>${esc(r.players?.display_name||r.players?.full_name)}</option>`}).join('')}</select>${p?`<div class="section"><label>Captain Email</label><input id="email_${t.id}" type="email" autocomplete="off" value="${esc(inv?.email||'')}" placeholder="captain@example.com"><label>Password</label><input id="password_${t.id}" type="password" autocomplete="new-password" placeholder="Minimum 8 characters"><button class="btn section" onclick="createCaptainLogin('${t.id}')">${inv?'🔄 Update Captain Account':'👤 Create Captain Account'}</button>${inv?'<div class="msg ok">✅ Captain account configured</div>':'<div class="mini">Admin sets the email and password. The captain will use these credentials on the Captain Login page.</div>'}</div>`:'<div class="warning section">Select a captain first.</div>'}</div>`}).join('')}</div>`:`<div class="empty">Create the team slots in Step 1 first.</div>`}
  <div class="${c.captainsOK?'msg ok':'warning'}">${c.captainsOK?'✅ Every team has a captain.':'⚠️ Select a captain for every team.'}</div><div class="${c.loginOK?'msg ok':'warning'}">${c.loginOK?'✅ Captain login prepared for every team.':'⚠️ Create a captain login for every selected captain.'}</div></div>
 
- <div class="card section"><h2>3️⃣ Auction Categories, Minimum Bids & Order</h2><p class="muted">Each category has its own minimum bid. Use ↑ / ↓ to decide which category goes first. Players inside each category will be randomly shuffled when the auction starts.</p><div class="grid"><div><label>New category</label><input id="catName" placeholder="A Grade"></div><div><label>Minimum bid</label><input id="catBid" type="number" min="0" value="${Number(AUCTION?.default_minimum_bid)||100}"></div><div class="row" style="align-items:end"><button class="btn" onclick="addCat()">+ Add Category</button></div></div>
+ <div class="card section"><h2>3️⃣ Auction Categories, Minimum Bids & Order</h2><p class="muted">Each category has its own minimum bid. Use ↑ / ↓ to decide which category goes first. Players inside each category will be randomly shuffled when the auction starts. When only one category exists, approved non-captains are automatically assigned to it</p><div class="grid"><div><label>New category</label><input id="catName" placeholder="A Grade"></div><div><label>Minimum bid</label><input id="catBid" type="number" min="0" value="${Number(AUCTION?.default_minimum_bid)||100}"></div><div class="row" style="align-items:end"><button class="btn" onclick="addCat()">+ Add Category</button></div></div>
  ${CATS.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Order / Category</th><th>Minimum Bid</th><th>Actions</th></tr></thead><tbody>${CATS.map((cat,i)=>`<tr><td><strong>${i+1}. ${esc(cat.name)}</strong><br><input id="cn_${cat.id}" value="${esc(cat.name)}"></td><td><input id="cb_${cat.id}" type="number" min="0" value="${Number(cat.minimum_bid)||0}"></td><td><button class="btn secondary" onclick="moveCat('${cat.id}',-1)" ${i===0?'disabled':''}>↑</button> <button class="btn secondary" onclick="moveCat('${cat.id}',1)" ${i===CATS.length-1?'disabled':''}>↓</button> <button class="btn" onclick="updateCat('${cat.id}')">Save</button> <button class="btn danger" onclick="deleteCat('${cat.id}')">Delete</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No categories created yet.</div>'}
  <div class="${c.catsOK?'msg ok':'warning'}">${c.catsOK?'✅ Categories are available.':'⚠️ Create at least one category.'}</div></div>
 

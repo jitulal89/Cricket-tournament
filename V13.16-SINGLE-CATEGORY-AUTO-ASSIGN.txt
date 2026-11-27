@@ -1,0 +1,11 @@
+V13.16 — SINGLE CATEGORY AUTO-ASSIGN
+
+Change:
+- When exactly one auction category exists, all approved non-captain auction players are automatically assigned to that category.
+- Runs during Pre-Auction Setup data load, so it also handles players approved later and categories reduced to one.
+- Captain registrations remain uncategorized and are excluded from the auction.
+- When two or more categories exist, player category assignments are not changed.
+
+Deployment:
+- Replace admin-pre-auction.html.
+- No Supabase SQL migration required.

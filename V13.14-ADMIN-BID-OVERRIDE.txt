@@ -1,0 +1,9 @@
+V13.14 - ADMIN BID OVERRIDE
+
+Admin live auction page:
+- Admin can set an override amount and select the team that becomes leading.
+- A confirmation warning shows current bid/team and override bid/new leading team.
+- Override can lower current bid and bypass the standard bid increment/minimum checks.
+- Selected team must have an initialized wallet and override amount cannot exceed remaining purse.
+- Every override is recorded in auction_bids with source 'admin_override' and admin user ID.
+- New SQL migration V13.14-admin-bid-override.sql must be applied in Supabase SQL Editor.

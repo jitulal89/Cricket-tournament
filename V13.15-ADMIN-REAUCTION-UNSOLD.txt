@@ -1,0 +1,16 @@
+V13.15 – Admin Unsold Player Re-auction
+
+Changes
+- Added an Unsold Players section to the Live Auction Admin page.
+- Unsold players remain in the database and are shown with their category and category minimum bid.
+- Admin can select an unsold player and start a later re-auction round.
+- Re-auction starts the selected player with no leading team and a zero current bid; captains bid normally from the category minimum.
+- No team purse is deducted unless the player is sold.
+- Re-auction is blocked while another player is currently being auctioned.
+
+Deployment
+1. Apply V13.15-ADMIN-REAUCTION-UNSOLD.sql in Supabase SQL Editor.
+2. Replace admin-auction.html with the version in this release.
+3. Commit and push to GitHub Pages.
+
+Note: The database function assumes the V13.14 auction schema and existing public.is_admin() helper. Test on your Supabase project after applying the SQL.
