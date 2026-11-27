@@ -59,7 +59,7 @@ function render(){
   <div>${S.leading_team_id?`Leading: <strong>${esc(TEAMS.find(t=>t.id===S.leading_team_id)?.name||'Team')}</strong>`:'No bid yet'}</div>
  </div>
  <div class="card section"><h2>Team Bidding</h2><p class="muted">Captains bid from their own devices. If a captain has a problem, use the admin fallback below.</p><div class="grid">${TEAMS.map(team=>teamCard(team)).join('')}</div></div>
- <div class="card section"><div class="row between"><div><h2>Admin Controls</h2><p class="muted">Use only when required or when the auction host is managing the bid.</p></div><span class="pill">Admin Override</span></div><div class="grid"><div><label>Team</label><select id="adminTeam">${TEAMS.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div><div><label>Bid Amount</label><input id="adminBid" class="bid-input" type="number" min="${nextBid()}" value="${nextBid()}"></div></div><div class="row"><button class="btn bigbtn" onclick="adminBid()">🔨 Enter Bid for Captain</button><button class="btn success bigbtn" onclick="finishPlayer('sold')">✓ Sell Player</button><button class="btn danger bigbtn" onclick="finishPlayer('unsold')">✕ Unsold</button></div></div>
+ <div class="card section"><div class="row between"><div><h2>Admin Controls</h2><p class="muted">Use only when required or when the auction host is managing the bid.</p></div><span class="pill">Admin Override</span></div><div class="grid"><div><label>Team</label><select id="adminTeam">${TEAMS.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div><div><label>Bid Amount</label><input id="adminBid" class="bid-input" type="number" min="0" value="${nextBid()}"></div></div><div class="row"><button class="btn bigbtn" onclick="adminBid()">🔨 Enter Bid for Captain</button><button class="btn success bigbtn" onclick="finishPlayer('sold')">✓ Sell Player</button><button class="btn danger bigbtn" onclick="finishPlayer('unsold')">✕ Unsold</button></div></div>
  <div class="card section"><h2>Category Order</h2>${categoryOrderEditor()}</div>
  <div class="card section"><h2>Remaining in Current Category</h2>${queueRemaining(PLAYERS.find(p=>p.player_id===S.current_player_id)?.auction_category_id).map(id=>{const p=player(id);return `<div class="queue-item">${esc(p?.display_name||p?.full_name||'Player')}</div>`}).join('')||'<div class="empty">No more players in this category.</div>'}</div>`;
 }
@@ -70,7 +70,18 @@ async function moveCat(id,dir){if(S?.status==='live')return alert('Category orde
 async function startAuction(){if(!confirm('Start the category-wise auction? Players will be randomly shuffled within each category.'))return;const {data,error}=await sb.rpc('start_live_auction',{p_tournament_id:T.id});if(error)return alert(error.message);const {data:s}=await sb.from('auction_sessions').select('*').eq('id',data).single();S=s;await loadWallets();render();subscribe()}
 async function loadWallets(){const {data,error}=await sb.from('auction_team_wallets').select('*').eq('tournament_id',T.id);if(error)return;for(const w of data||[]){const el=$('purse-'+w.team_id);if(el)el.textContent=money(w.remaining_purse)}}
 async function captainFallback(teamId){const val=Number($('bid-'+teamId).value);if(!val)return;const {error}=await sb.rpc('place_live_auction_bid',{p_tournament_id:T.id,p_team_id:teamId,p_amount:val,p_source:'admin'});if(error)return alert(error.message);await refreshSession()}
-async function adminBid(){const val=Number($('adminBid').value),team=$('adminTeam').value;if(!val)return;const {error}=await sb.rpc('place_live_auction_bid',{p_tournament_id:T.id,p_team_id:team,p_amount:val,p_source:'admin'});if(error)return alert(error.message);await refreshSession()}
+async function adminBid(){
+ const val=Number($('adminBid').value),team=$('adminTeam').value;
+ if(!Number.isFinite(val)||val<=0)return alert('Enter a valid bid amount greater than zero.');
+ const teamName=TEAMS.find(t=>t.id===team)?.name||'selected team';
+ const current=Number(S?.current_bid||0);
+ const currentTeam=TEAMS.find(t=>t.id===S?.leading_team_id)?.name||'No leading team';
+ const warning=`ADMIN BID OVERRIDE WARNING\n\nCurrent bid: ${money(current)}\nCurrent leading team: ${currentTeam}\nOverride bid: ${money(val)}\nNew leading team: ${teamName}\n\nThis will directly replace the current bid and make the selected team the leader, even if the amount is lower than the current bid or normal minimum increment. Continue?`;
+ if(!confirm(warning))return;
+ const {error}=await sb.rpc('admin_override_live_auction_bid',{p_tournament_id:T.id,p_team_id:team,p_amount:val});
+ if(error)return alert(error.message);
+ await refreshSession();
+}
 async function finishPlayer(result){if(!confirm(result==='sold'?'Sell this player to the leading team?':'Mark this player unsold?'))return;const {error}=await sb.rpc('finish_current_auction_player',{p_tournament:T.id,p_result:result});if(error)return alert(error.message);await refreshSession()}
 async function refreshSession(){const {data,error}=await sb.from('auction_sessions').select('*').eq('tournament_id',T.id).single();if(error)return alert(error.message);S=data;render();await loadWallets()}
 function subscribe(){if(channel)sb.removeChannel(channel);channel=sb.channel('auction-'+T.id).on('postgres_changes',{event:'*',schema:'public',table:'auction_sessions',filter:'tournament_id=eq.'+T.id},()=>refreshSession()).on('postgres_changes',{event:'*',schema:'public',table:'auction_team_wallets',filter:'tournament_id=eq.'+T.id},()=>loadWallets()).on('postgres_changes',{event:'*',schema:'public',table:'auction_bids'},()=>refreshSession()).subscribe();loadWallets()}
