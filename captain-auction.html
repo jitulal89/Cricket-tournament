@@ -33,7 +33,8 @@ function allRegisteredPlayersSection(){
 
 function captainNav(){
  const items=[['registered','👥 Registered Players'],['auction','🔨 Live Auction'],['teams','🏆 Teams & Results']];
- document.getElementById('nav').innerHTML=items.map(([id,label])=>`<button class="btn secondary" style="margin:3px" onclick="CAPVIEW='${id}';render()">${label}</button>`).join('');
+ document.getElementById('nav').innerHTML=items.map(([id,label])=>`<button class="btn secondary" style="margin:3px" onclick="CAPVIEW='${id}';render()">${label}</button>`).join('')+
+  `<button class="btn secondary" style="margin:3px" onclick="logout()">Logout</button>`;
 }
 function captainTeamsSection(){
  return `<section class="card section"><h2>🏆 All Teams & Player Details</h2><p class="muted">Full team rosters, photos and auction purchase prices.</p><div class="grid section">${OVERVIEW.map(t=>`<div class="overview-team"><div class="row between"><h3>${esc(t.name)}</h3><span class="pill">${t.players.length} players</span></div><div class="mini">Captain: ${esc(t.captain)}</div><div class="purse">Total spent: ${money(t.players.reduce((s,p)=>s+Number(p.price||0),0))}</div><div class="grid section">${t.players.map(p=>`<div class="overview-team" style="display:flex;gap:10px;align-items:center"><img src="${esc(p.photo||'')}" class="avatar" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'" alt=""><div class="avatar placeholder" style="display:${p.photo?'none':'grid'}">🏏</div><div style="flex:1;min-width:0"><strong>${esc(p.name)}</strong><div class="mini">${esc(p.role||'Player')}</div></div><strong>${money(p.price)}</strong></div>`).join('')||'<div class="roster-empty">No players purchased</div>'}</div></div>`).join('')}</div></section>`;
