@@ -31,3 +31,5 @@ Deploy the function from the `supabase/functions/create-captain-account` folder,
 
 ## Important
 The live-auction RPC calls use the database parameter name `p_tournament_id`.
+
+V13.22 fix: Sold and unsold players are excluded from the Remaining in Current Category list, even though the original auction queue is retained.

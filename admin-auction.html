@@ -26,7 +26,16 @@ async function loadBase(){
 }
 function player(id){const x=PLAYERS.find(p=>p.player_id===id);return x?.players||null}
 function currentCategory(){return S?.current_player_id ? CATMAP[PLAYERS.find(p=>p.player_id===S.current_player_id)?.auction_category_id] : null}
-function queueRemaining(catId){if(!S)return [];const arr=S.category_queues?.[catId]||[];return arr.filter(id=>id!==S.current_player_id)}
+function queueRemaining(catId){
+ if(!S)return [];
+ const arr=S.category_queues?.[catId]||[];
+ // Category queues are created at auction start and are not rewritten when a
+ // player is sold or marked unsold. Remove those records from the visible
+ // remaining list using the current auction_players status collections.
+ const soldPlayerIds=new Set((SOLD||[]).map(ap=>REGISTRATIONS.find(r=>r.id===ap.player_registration_id)?.player_id).filter(Boolean));
+ const unsoldPlayerIds=new Set((UNSOLD||[]).map(ap=>REGISTRATIONS.find(r=>r.id===ap.player_registration_id)?.player_id).filter(Boolean));
+ return arr.filter(id=>id!==S.current_player_id&&!soldPlayerIds.has(id)&&!unsoldPlayerIds.has(id));
+}
 function render(){
  if(!A){$('app').innerHTML='<div class="card">Auction settings not found.</div>';return}
  if(!S){
