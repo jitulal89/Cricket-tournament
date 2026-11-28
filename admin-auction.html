@@ -30,7 +30,7 @@ function queueRemaining(catId){if(!S)return [];const arr=S.category_queues?.[cat
 function render(){
  if(!A){$('app').innerHTML='<div class="card">Auction settings not found.</div>';return}
  if(!S){
-  $('app').innerHTML=`<div class="card"><h2>Auction is ready to start</h2><p class="muted">Choose the category order below. Players will be shuffled automatically inside each category when you start.</p>${categoryOrderEditor()}<div class="row section"><button class="btn secondary" onclick="sharePublicAuction()">🔗 Share Spectator Link</button><button class="btn success bigbtn" onclick="startAuction()">▶ Start Auction</button></div></div>`;return;
+  $('app').innerHTML=`<div class="card"><h2>Auction is ready to start</h2><p class="muted">Choose the category order below. Players will be shuffled automatically inside each category when you start.</p>${categoryOrderEditor()}<div class="row section"><button class="btn secondary" onclick="sharePublicAuction()">🔗 Share Spectator Link</button><button class="btn success bigbtn" onclick="startAuction()">▶ Start Auction</button></div></div>${soldPlayersByTeamCard()}`;return;
  }
  const cp=player(S.current_player_id),cat=currentCategory();
  if(S.status==='completed'){$('app').innerHTML=`<div class="card"><h1>🏆 Auction Completed</h1><p>${esc(T.name)}</p><div class="row"><a class="btn" href="auction-results.html?slug=${encodeURIComponent(T.slug)}">View Results</a><button class="btn secondary" onclick="sharePublicAuction()">🔗 Share Public Auction Page</button></div></div>${soldPlayersByTeamCard()}${unsoldPlayersCard()}`;return}
@@ -62,7 +62,7 @@ function render(){
  </div>
  <div class="card section"><h2>Team Bidding</h2><p class="muted">Captains bid from their own devices. If a captain has a problem, use the admin fallback below.</p><div class="grid">${TEAMS.map(team=>teamCard(team)).join('')}</div></div>
  <div class="card section"><div class="row between"><div><h2>Admin Controls</h2><p class="muted">Use only when required or when the auction host is managing the bid.</p></div><span class="pill">Admin Override</span></div><div class="grid"><div><label>Team</label><select id="adminTeam">${TEAMS.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select></div><div><label>Bid Amount</label><input id="adminBid" class="bid-input" type="number" min="0" value="${nextBid()}"></div></div><div class="row"><button class="btn bigbtn" onclick="adminBid()">🔨 Enter Bid for Captain</button><button class="btn success bigbtn" onclick="finishPlayer('sold')">✓ Sell Player</button><button class="btn danger bigbtn" onclick="finishPlayer('unsold')">✕ Unsold</button></div></div>
- ${unsoldPlayersCard()}
+ ${soldPlayersByTeamCard()}\n ${unsoldPlayersCard()}
  <div class="card section"><h2>Category Order</h2>${categoryOrderEditor()}</div>
  <div class="card section"><h2>Remaining in Current Category</h2>${queueRemaining(PLAYERS.find(p=>p.player_id===S.current_player_id)?.auction_category_id).map(id=>{const p=player(id);return `<div class="queue-item">${esc(p?.display_name||p?.full_name||'Player')}</div>`}).join('')||'<div class="empty">No more players in this category.</div>'}</div>`;
 }
