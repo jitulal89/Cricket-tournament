@@ -14,14 +14,14 @@ async function submitReg(slug,tournamentId){
  const {error:ue}=await sb.storage.from("player-photos").upload(path,file,{contentType:file.type||"image/jpeg",upsert:false});
  if(ue){m.innerHTML=msg("Photo upload failed: "+ue.message,"err");return}
  const {data:u}=sb.storage.from("player-photos").getPublicUrl(path);
- const {data:p,error:pe}=await sb.from("players").insert({
+ const {error:pe}=await sb.from("players").insert({
    id:playerId,full_name:fullName.value.trim(),display_name:displayName.value.trim()||null,
    phone:phone.value.trim(),email:email.value.trim()||null,date_of_birth:dob.value||null,
    profile_photo_url:u.publicUrl,batting_style:bat.value||null,bowling_style:bowl.value||null,
    playing_role:role.value,cricheroes_profile_url:ch.value.trim()||null
- }).select().single();
+ });
  if(pe){m.innerHTML=msg(pe.message,"err");return}
- const {error:re}=await sb.from("player_registrations").insert({tournament_id:tournamentId,player_id:p.id,status:"pending"});
+ const {error:re}=await sb.from("player_registrations").insert({tournament_id:tournamentId,player_id:playerId,status:"pending"});
  if(re){m.innerHTML=msg(re.message,"err");return}
  app.innerHTML=`<div class="card" style="max-width:600px;margin:40px auto;text-align:center"><div style="font-size:54px">✅</div><h2>Registration submitted!</h2><p class="muted">Your registration has been received and is awaiting administrator approval.</p><a class="btn" href="tournament.html?slug=${slug}">Back to Tournament</a></div>`;
 }

@@ -1,0 +1,18 @@
+V13.25 — Player Registration RLS Fix
+
+Problem:
+The registration form was rejected by Supabase with:
+new row violates row-level security policy for table "players"
+
+Changes:
+- Added an INSERT RLS policy for public player registration on public.players (anon/authenticated).
+- Granted INSERT to anon and authenticated.
+- Removed `.select().single()` from the player insert. The form already creates playerId locally and uses it to insert player_registrations, so it does not need to read the player row back.
+- No player SELECT policy was added; player data remains protected from public reads.
+
+Deployment:
+1. Run V13.25-FIX-PLAYER-REGISTRATION-RLS.sql in Supabase SQL Editor.
+2. Replace register.html in GitHub Pages with this version.
+3. Commit/push and refresh registration page.
+
+Note: This migration allows public INSERT into players for registration. Keep player SELECT/UPDATE/DELETE restricted. If player_registrations has its own INSERT RLS policy, that policy must also permit public pending registrations; the current screenshot's reported failure is specifically on players.
