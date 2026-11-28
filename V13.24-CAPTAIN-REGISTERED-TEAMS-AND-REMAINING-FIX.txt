@@ -1,0 +1,16 @@
+V13.24 — Captain navigation, live remaining players, and team roster photos
+
+Changes:
+- Persistent captain navigation: Registered Players, Live Auction, Teams & Results.
+- Registered Players is available before, during, and after the auction.
+- Remaining players now derive category from the current player registration/auction record, use category queue, and fall back to approved category registrations if the stored queue is missing or empty.
+- Excludes current, sold, and unsold players from the remaining list; sold filtering also uses the captain-readable auction squad overview.
+- After completion, captain sees all teams and their purchased player details, photos, roles and purchase prices.
+- Missing player photos use a cricket placeholder.
+- Refreshes registered and auction player data on realtime registration/auction-player changes.
+
+Deployment:
+- Replace captain-auction.html.
+- No SQL migration.
+- JavaScript syntax check and ZIP integrity check passed.
+- Live Supabase/RLS runtime behavior was not tested.
