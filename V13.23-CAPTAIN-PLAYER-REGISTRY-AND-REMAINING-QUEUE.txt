@@ -1,0 +1,14 @@
+V13.23 — Captain Player Registry & Remaining Auction Queue
+
+Changes:
+- Captain page shows all approved registered players before the auction starts.
+- Player cards show available profile and CricHeroes stats: role, batting/bowling style, matches, runs, wickets, strike rate, economy, profile link, category, and captain marker.
+- During a live auction, captain can see the remaining players in the current category.
+- Remaining list follows the auction category queue and excludes the current player, sold players, and unsold players.
+- Player status list refreshes when auction_players changes.
+- Existing live bidding and team auction overview remain intact.
+
+Deployment:
+- Replace captain-auction.html.
+- No SQL migration added.
+- JavaScript syntax check passed. Supabase live/RLS behavior was not tested against the user's project.
