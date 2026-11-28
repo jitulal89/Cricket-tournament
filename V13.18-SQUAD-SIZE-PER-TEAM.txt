@@ -1,0 +1,14 @@
+V13.18 — SQUAD SIZE PER TEAM
+
+Feature:
+- Pre-Auction Setup now includes "Total squad size per team (including captain)".
+- Default is 11 players: 1 captain + up to 10 players purchased in auction.
+- Admin can set 2–30 players per team.
+- Supabase migration adds auction_settings.players_per_team and enforces the limit in both captain/admin bid RPC and admin bid override.
+- Teams at their squad limit cannot place further bids or be selected by an admin override.
+- Existing team/purse/bid logic is otherwise preserved.
+
+Deployment:
+1. Run V13.18-SQUAD-SIZE-PER-TEAM.sql in Supabase SQL Editor.
+2. Replace admin-pre-auction.html.
+3. Commit and push, then refresh Pre-Auction Setup.

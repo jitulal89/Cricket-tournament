@@ -45,24 +45,59 @@ function render(){
  const c=checks(),players=auctionPlayers();
  app.innerHTML=`
  <div class="row between"><div><h1 style="font-size:36px">Pre-Auction Setup</h1><p class="muted">${esc(T.name)}</p></div><div class="row"><a class="btn secondary" href="admin-tournament.html?slug=${encodeURIComponent(T.slug)}">← Tournament</a><a class="btn secondary" href="admin-auction.html?slug=${encodeURIComponent(T.slug)}">Auction →</a></div></div>
- <div class="notice section"><strong>Before the auction can start:</strong> decide the number of teams, select one captain for every team, create a captain login for each selected captain, create categories with minimum bids, and assign every non-captain to a category. If exactly one category exists, all approved non-captains are automatically assigned to it.</div>
+ <div class="notice section"><strong>Before the auction can start:</strong> decide the number of teams and squad size per team, select one captain for every team, create a captain login for each selected captain, create categories with minimum bids, and assign every non-captain to a category. If exactly one category exists, all approved non-captains are automatically assigned to it.</div>
  <div class="grid section"><div class="card"><div class="stat">${REGS.length}</div><div class="muted">Approved Players</div></div><div class="card"><div class="stat">${TEAMS.filter(t=>t.captain_id).length}/${Number(T.number_of_teams)||0}</div><div class="muted">Captains Selected</div></div><div class="card"><div class="stat">${players.length}</div><div class="muted">Players for Auction</div></div><div class="card"><div class="stat">${players.filter(p=>p.auction_category_id).length}/${players.length}</div><div class="muted">Players Categorized</div></div></div>
 
  <div class="card section"><h2>1️⃣ Decide Number of Teams</h2><p class="muted">You currently have <strong>${REGS.length}</strong> approved registrations.</p><div class="grid"><div><label>Number of teams</label><input id="teamCount" type="number" min="2" value="${Number(T.number_of_teams)||4}"></div><div class="row" style="align-items:end"><button class="btn" onclick="saveTeams()">Save Number of Teams</button></div></div><div class="${c.teamsOK?'msg ok':'warning'}">${c.teamsOK?'✅ Team slots created.':'⚠️ Save the number of teams to create team slots.'}</div></div>
 
- <div class="card section"><h2>2️⃣ Select Captains & Create Captain Login</h2><p class="muted">Select one captain per team. Then enter the captain's email and a password, and tap <strong>Create Captain Account</strong>. The password is used only to create the Supabase Auth account and is never stored in the tournament database.</p>
+ <div class="card section"><h2>2️⃣ Set Players per Team</h2><p class="muted">Set the total squad size for each team, including the captain. For example, 11 means each team can have 1 captain and buy up to 10 players in the auction.</p><div class="grid"><div><label>Total squad size per team (including captain)</label><input id="playersPerTeam" type="number" min="2" max="30" value="${Number(AUCTION?.players_per_team)||11}"></div><div class="row" style="align-items:end"><button class="btn" onclick="savePlayersPerTeam()">Save Squad Size</button></div></div><div class="muted">Current setting: ${Number(AUCTION?.players_per_team)||11} players per team</div></div>
+
+ <div class="card section"><h2>3️⃣ Select Captains & Create Captain Login</h2><p class="muted">Select one captain per team. Then enter the captain's email and a password, and tap <strong>Create Captain Account</strong>. The password is used only to create the Supabase Auth account and is never stored in the tournament database.</p>
  ${TEAMS.length?`<div class="grid">${TEAMS.map(t=>{const p=captainForTeam(t),inv=inviteForTeam(t);return `<div class="team-card" style="border:1px solid #e5e7eb;border-radius:14px;padding:14px;background:#fff"><h3>${esc(t.name)}</h3><label>Captain</label><select onchange="setCaptain('${t.id}',this.value)"><option value="">Select Captain</option>${REGS.map(r=>{const used=TEAMS.some(x=>x.id!==t.id&&x.captain_id===r.player_id);return `<option value="${r.player_id}" ${r.player_id===t.captain_id?'selected':''} ${used?'disabled':''}>${esc(r.players?.display_name||r.players?.full_name)}</option>`}).join('')}</select>${p?`<div class="section"><label>Captain Email</label><input id="email_${t.id}" type="email" autocomplete="off" value="${esc(inv?.email||'')}" placeholder="captain@example.com"><label>Password</label><input id="password_${t.id}" type="password" autocomplete="new-password" placeholder="Minimum 8 characters"><button class="btn section" onclick="createCaptainLogin('${t.id}')">${inv?'🔄 Update Captain Account':'👤 Create Captain Account'}</button>${inv?'<div class="msg ok">✅ Captain account configured</div>':'<div class="mini">Admin sets the email and password. The captain will use these credentials on the Captain Login page.</div>'}</div>`:'<div class="warning section">Select a captain first.</div>'}</div>`}).join('')}</div>`:`<div class="empty">Create the team slots in Step 1 first.</div>`}
  <div class="${c.captainsOK?'msg ok':'warning'}">${c.captainsOK?'✅ Every team has a captain.':'⚠️ Select a captain for every team.'}</div><div class="${c.loginOK?'msg ok':'warning'}">${c.loginOK?'✅ Captain login prepared for every team.':'⚠️ Create a captain login for every selected captain.'}</div></div>
 
- <div class="card section"><h2>3️⃣ Auction Categories, Minimum Bids & Order</h2><p class="muted">Each category has its own minimum bid. Use ↑ / ↓ to decide which category goes first. Players inside each category will be randomly shuffled when the auction starts. When only one category exists, approved non-captains are automatically assigned to it</p><div class="grid"><div><label>New category</label><input id="catName" placeholder="A Grade"></div><div><label>Minimum bid</label><input id="catBid" type="number" min="0" value="${Number(AUCTION?.default_minimum_bid)||100}"></div><div class="row" style="align-items:end"><button class="btn" onclick="addCat()">+ Add Category</button></div></div>
+ <div class="card section"><h2>4️⃣ Auction Categories, Minimum Bids & Order</h2><p class="muted">Each category has its own minimum bid. Use ↑ / ↓ to decide which category goes first. Players inside each category will be randomly shuffled when the auction starts. When only one category exists, approved non-captains are automatically assigned to it</p><div class="grid"><div><label>New category</label><input id="catName" placeholder="A Grade"></div><div><label>Minimum bid</label><input id="catBid" type="number" min="0" value="${Number(AUCTION?.default_minimum_bid)||100}"></div><div class="row" style="align-items:end"><button class="btn" onclick="addCat()">+ Add Category</button></div></div>
  ${CATS.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Order / Category</th><th>Minimum Bid</th><th>Actions</th></tr></thead><tbody>${CATS.map((cat,i)=>`<tr><td><strong>${i+1}. ${esc(cat.name)}</strong><br><input id="cn_${cat.id}" value="${esc(cat.name)}"></td><td><input id="cb_${cat.id}" type="number" min="0" value="${Number(cat.minimum_bid)||0}"></td><td><button class="btn secondary" onclick="moveCat('${cat.id}',-1)" ${i===0?'disabled':''}>↑</button> <button class="btn secondary" onclick="moveCat('${cat.id}',1)" ${i===CATS.length-1?'disabled':''}>↓</button> <button class="btn" onclick="updateCat('${cat.id}')">Save</button> <button class="btn danger" onclick="deleteCat('${cat.id}')">Delete</button></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No categories created yet.</div>'}
  <div class="${c.catsOK?'msg ok':'warning'}">${c.catsOK?'✅ Categories are available.':'⚠️ Create at least one category.'}</div></div>
 
- <div class="card section"><h2>4️⃣ Assign Players to Categories</h2><p class="muted"><strong>${players.length}</strong> players will enter the auction. Captains are excluded.</p>${players.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Player</th><th>Role</th><th>Category</th></tr></thead><tbody>${players.map(r=>`<tr><td><strong>${esc(r.players?.display_name||r.players?.full_name)}</strong></td><td>${esc(r.players?.playing_role||'—')}</td><td><select onchange="setCategory('${r.id}',this.value)"><option value="">Select Category</option>${CATS.map(cat=>`<option value="${cat.id}" ${r.auction_category_id===cat.id?'selected':''}>${esc(cat.name)} — ${money(cat.minimum_bid)}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No auction players. Approve players and select captains first.</div>'}<div class="${c.categoriesOK?'msg ok':'warning'}">${c.categoriesOK?'✅ Every auction player has a category.':'⚠️ Assign a category to every auction player.'}</div></div>
+ <div class="card section"><h2>5️⃣ Assign Players to Categories</h2><p class="muted"><strong>${players.length}</strong> players will enter the auction. Captains are excluded.</p>${players.length?`<div class="table-wrap"><table class="table"><thead><tr><th>Player</th><th>Role</th><th>Category</th></tr></thead><tbody>${players.map(r=>`<tr><td><strong>${esc(r.players?.display_name||r.players?.full_name)}</strong></td><td>${esc(r.players?.playing_role||'—')}</td><td><select onchange="setCategory('${r.id}',this.value)"><option value="">Select Category</option>${CATS.map(cat=>`<option value="${cat.id}" ${r.auction_category_id===cat.id?'selected':''}>${esc(cat.name)} — ${money(cat.minimum_bid)}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table></div>`:'<div class="empty">No auction players. Approve players and select captains first.</div>'}<div class="${c.categoriesOK?'msg ok':'warning'}">${c.categoriesOK?'✅ Every auction player has a category.':'⚠️ Assign a category to every auction player.'}</div></div>
 
- <div class="card section"><h2>5️⃣ Final Readiness</h2><div class="${c.ready?'notice':'warning'}">${c.ready?'🎉 Everything is complete. You can mark the auction READY.':'Complete all setup steps before starting the auction.'}</div><div class="row section"><button class="btn success" ${c.ready?'':'disabled'} onclick="markReady()">✓ Mark Auction Ready</button><a class="btn secondary" href="admin-tournament.html?slug=${encodeURIComponent(T.slug)}">Back to Tournament</a></div></div>`;
+ <div class="card section"><h2>6️⃣ Final Readiness</h2><div class="${c.ready?'notice':'warning'}">${c.ready?'🎉 Everything is complete. You can mark the auction READY.':'Complete all setup steps before starting the auction.'}</div><div class="row section"><button class="btn success" ${c.ready?'':'disabled'} onclick="markReady()">✓ Mark Auction Ready</button><a class="btn secondary" href="admin-tournament.html?slug=${encodeURIComponent(T.slug)}">Back to Tournament</a></div></div>`;
 }
-async function saveTeams(){const n=Number(teamCount.value);if(!Number.isInteger(n)||n<2)return alert('Enter at least 2 teams.');const {error}=await sb.from('tournaments').update({number_of_teams:n}).eq('id',T.id);if(error)return alert(error.message);const {data:existing}=await sb.from('teams').select('id,name').eq('tournament_id',T.id);const names=new Set((existing||[]).map(x=>x.name));for(let i=0;i<n;i++){const name='Team '+String.fromCharCode(65+i);if(!names.has(name)){const {error:e}=await sb.from('teams').insert({tournament_id:T.id,name});if(e)return alert(e.message)}}await loadData();render()}
+async function saveTeams(){
+ const input=document.getElementById('teamCount');
+ const n=Number(input?.value);
+ if(!Number.isInteger(n)||n<2)return alert('Enter at least 2 teams.');
+ const button=[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Save Number of Teams'));
+ if(button){button.disabled=true;button.textContent='Saving…'}
+ try{
+   const {data:existing,error:teamReadError}=await sb.from('teams').select('id,name').eq('tournament_id',T.id);
+   if(teamReadError)throw teamReadError;
+   const rows=existing||[];
+   if(n<rows.length){
+     throw new Error(`There are already ${rows.length} team records. This page can safely add team slots, but cannot reduce the number without risking captain and auction references. Please remove/merge unused teams first.`);
+   }
+   // Ensure the requested count is saved even if team rows already exist.
+   const {error:updateError}=await sb.from('tournaments').update({number_of_teams:n}).eq('id',T.id);
+   if(updateError)throw updateError;
+   const names=new Set(rows.map(x=>String(x.name||'').trim().toLowerCase()));
+   let toAdd=n-rows.length;
+   for(let i=0;toAdd>0;i++){
+     let name;
+     if(i<26) name='Team '+String.fromCharCode(65+i);
+     else name='Team '+(i+1);
+     if(names.has(name.toLowerCase()))continue;
+     const {error:insertError}=await sb.from('teams').insert({tournament_id:T.id,name});
+     if(insertError)throw insertError;
+     names.add(name.toLowerCase());toAdd--;
+   }
+   T.number_of_teams=n;
+   await loadData();
+   render();
+   alert(`Team count saved: ${n}. ${n-rows.length>0?`Added ${n-rows.length} team slot(s).`:''}`);
+ }catch(e){alert(e?.message||String(e))}
+ finally{if(button){button.disabled=false;button.textContent='Save Number of Teams'}}
+}
 async function setCaptain(teamId,playerId){const team=TEAMS.find(t=>t.id===teamId);if(team?.captain_id){await sb.from('player_registrations').update({is_captain:false,auction_category_id:null}).eq('tournament_id',T.id).eq('player_id',team.captain_id)}await sb.from('captain_invites').update({active:false,updated_at:new Date().toISOString()}).eq('team_id',teamId).eq('tournament_id',T.id);if(playerId){const other=TEAMS.find(t=>t.id!==teamId&&t.captain_id===playerId);if(other){await sb.from('teams').update({captain_id:null}).eq('id',other.id);await sb.from('captain_invites').update({active:false,updated_at:new Date().toISOString()}).eq('team_id',other.id).eq('tournament_id',T.id)}await sb.from('player_registrations').update({is_captain:false,auction_category_id:null}).eq('tournament_id',T.id).eq('player_id',playerId);let {error}=await sb.from('teams').update({captain_id:playerId}).eq('id',teamId);if(error)return alert(error.message);({error}=await sb.from('player_registrations').update({is_captain:true,auction_category_id:null}).eq('tournament_id',T.id).eq('player_id',playerId));if(error)return alert(error.message)}else{await sb.from('teams').update({captain_id:null}).eq('id',teamId)}await loadData();render()}
 async function createCaptainLogin(teamId){
  const team=TEAMS.find(t=>t.id===teamId),p=captainForTeam(team),email=document.getElementById('email_'+teamId)?.value.trim().toLowerCase(),password=document.getElementById('password_'+teamId)?.value||'';
@@ -83,6 +118,22 @@ async function updateCat(id){const name=document.getElementById('cn_'+id).value.
 async function moveCat(id,dir){const i=CATS.findIndex(c=>c.id===id),j=i+dir;if(i<0||j<0||j>=CATS.length)return;[CATS[i],CATS[j]]=[CATS[j],CATS[i]];for(let k=0;k<CATS.length;k++){const {error}=await sb.from('auction_categories').update({auction_order:k+1}).eq('id',CATS[k].id);if(error)return alert(error.message)}await loadData();render()}
 async function deleteCat(id){if(!confirm('Delete this category? Players assigned to it will become uncategorized.'))return;const {error}=await sb.from('auction_categories').delete().eq('id',id);if(error)return alert(error.message);await loadData();render()}
 async function setCategory(regId,catId){const {error}=await sb.from('player_registrations').update({auction_category_id:catId||null,is_captain:false}).eq('id',regId);if(error)return alert(error.message);await loadData();render()}
+async function savePlayersPerTeam(){
+ const input=document.getElementById('playersPerTeam');
+ const n=Number(input?.value);
+ if(!Number.isInteger(n)||n<2||n>30)return alert('Enter a squad size between 2 and 30.');
+ const button=[...document.querySelectorAll('button')].find(b=>b.textContent.includes('Save Squad Size'));
+ if(button){button.disabled=true;button.textContent='Saving…'}
+ try{
+   const {data,error}=await sb.from('auction_settings').update({players_per_team:n}).eq('tournament_id',T.id).select('players_per_team').maybeSingle();
+   if(error)throw error;
+   if(!data)throw new Error('Auction settings row was not found. Please open the tournament Auction Settings once, then retry.');
+   AUCTION={...(AUCTION||{}),players_per_team:n};
+   render();
+   alert(`Squad size saved: ${n} players per team, including captain.`);
+ }catch(e){alert(e?.message||String(e))}
+ finally{if(button){button.disabled=false;button.textContent='Save Squad Size'}}
+}
 async function markReady(){const c=checks();if(!c.ready)return alert('Complete all setup steps first.');for(let i=0;i<CATS.length;i++){const {error:e}=await sb.from('auction_categories').update({auction_order:i+1}).eq('id',CATS[i].id);if(e)return alert(e.message)}let {error}=await sb.from('auction_settings').update({auction_status:'ready'}).eq('tournament_id',T.id);if(error)return alert(error.message);const {data:session}=await sb.from('auction_sessions').select('id').eq('tournament_id',T.id).maybeSingle();if(session?.id)await sb.from('auction_sessions').update({status:'ready',updated_at:new Date().toISOString()}).eq('id',session.id);alert('Auction is READY.');await loadData();render()}
 async function load(){if(!(await requireAdmin()))return;await setNav();try{T=await getTournament(qs('slug'));await loadData();render()}catch(e){app.innerHTML=msg(e.message,'err')}}load();
 </script></body></html>

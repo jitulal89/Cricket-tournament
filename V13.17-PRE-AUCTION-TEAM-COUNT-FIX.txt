@@ -1,0 +1,12 @@
+V13.17 — PRE-AUCTION TEAM COUNT FIX
+
+Fixes:
+- Reads the team count input explicitly via document.getElementById, avoiding reliance on implicit browser globals.
+- Adds the difference between existing team rows and the requested count, preserving existing teams/captains.
+- Supports custom existing team names and skips duplicate generated names.
+- Updates the tournament count and local state, then reloads and verifies the setup display.
+- Prevents unsafe reduction when existing team rows exceed the requested count, instead displaying a clear warning.
+
+Deployment:
+- Replace admin-pre-auction.html.
+- No SQL migration required.
